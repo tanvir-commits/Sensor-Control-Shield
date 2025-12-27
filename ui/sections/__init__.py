@@ -1,0 +1,2 @@
+"""UI section widgets."""
+
