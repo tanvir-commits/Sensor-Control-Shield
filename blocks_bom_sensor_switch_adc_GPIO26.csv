@@ -1,0 +1,12 @@
+Block,RefDes,Qty,Description,Value/Part,LCSC_PN,Mfr,Mfr_PN,Footprint,Nets,Populate,Notes
+SENSOR_3V3_SWITCH,U_SENS_SW,1,Load switch / eFuse-lite with programmable current limit + reverse blocking,SY6280AAC,C55136,Silergy,SY6280AAC,SOT-23-5 (check EasyEDA/KiCad library for exact),"3V3_IN, SENS_3V3_SW, SENS_EN, SENS_ILIM, GND",PROD,Default OFF via EN pulldown. Current limit set by RSET network.
+SENSOR_3V3_SWITCH,RSET1,1,Current-limit set resistor (default 200mA),34.0k 1%,,,,0603 (or 0402 per your standard),"SENS_ILIM, GND",PROD,Ilim≈6800/Rset. 34.0k → ~200mA.
+SENSOR_3V3_SWITCH,RSET2,1,Parallel resistor to increase limit to ~300mA (via solder jumper),67.4k 1%,,,,0603 (or 0402 per your standard),"SENS_ILIM, GND",LAB,Add in parallel with RSET1: 34.0k || 67.4k ≈ 22.6k → ~300mA.
+SENSOR_3V3_SWITCH,SJ_ILIM,1,Solder jumper enabling RSET2 (300mA mode),2-pad solder jumper,,,,SolderJumper_2,RSET2_EN (series link),PROD,OPEN=200mA default. CLOSE to enable RSET2 (300mA).
+SENSOR_3V3_SWITCH,REN_PD,1,EN pulldown (default OFF),100k,,,,0603,"SENS_EN, GND",PROD,Ensures sensor rail is OFF at boot unless driven.
+SENSOR_3V3_SWITCH,REN_SER,1,EN series resistor (optional edge/ESD tame),100Ω,,,,0603,"SENS_EN_GPIO26, SENS_EN",PROD,Optional but recommended for robustness. (GPIO26 / physical 37)
+SENSOR_3V3_SWITCH,CIN,1,Input bulk/decoupling capacitor,10µF 6.3V+ X5R/X7R,,,,0805/1206,"3V3_IN, GND",PROD,Place close to U_SENS_SW IN.
+SENSOR_3V3_SWITCH,COUT,1,Output bulk/decoupling capacitor,10µF 6.3V+ X5R/X7R,,,,0805/1206,"SENS_3V3_SW, GND",PROD,Place close to U_SENS_SW OUT and near sensor connectors.
+ADC_ADS1115,U_ADC,1,4ch ADC (I2C),ADS1115IDGSR,C37593,Texas Instruments,ADS1115IDGSR,VSSOP-10 (DGSR),"3V3_IN, GND, I2C_SDA, I2C_SCL, ADC_AIN0, ADC_AIN1, ADC_AIN2, ADC_AIN3",PROD,Use for voltage measurement only; place in analog island.
+ADC_ADS1115,C_ADC,1,ADC supply decoupling capacitor,0.1µF,,,,0402/0603,"3V3_IN, GND",PROD,Place at ADS1115 VDD pin.
+ADC_ADS1115,R_ADDR,1,Address strap resistor (optional),0Ω (or DNP),,,,0402/0603,"ADDR, GND (or VDD)",LAB,Only if you need to set ADS1115 address; otherwise hard-tie in schematic.
