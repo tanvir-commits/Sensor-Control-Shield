@@ -872,12 +872,18 @@ Schematic diagrams referenced in this document should be placed in an `images/` 
 - ADS1015: See Section 8 "Typical Applications" in datasheet
 - SY6280AAC: See "Typical Applications" section in datasheet
 
-### 12.4 Related Documentation
+### 12.4 Design Files
+
+**Bill of Materials (BOM):**
+- [blocks_bom_sensor_switch_adc_GPIO26.csv](blocks_bom_sensor_switch_adc_GPIO26.csv) - Complete component list with LCSC part numbers, footprints, and notes
+
+**Pin Mapping:**
+- [pin_mapping_FINAL_UART3_with_JLC_and_SENSrail_GPIO26.csv](pin_mapping_FINAL_UART3_with_JLC_and_SENSrail_GPIO26.csv) - Complete pin mapping, connector assignments, and GPIO connections
+
+### 12.5 Related Documentation
 
 - `What_This_Board_Is.md` - Board purpose and overview
 - `V1_UI_Concept_Device_Panel.md` - Software interface requirements
-- `blocks_bom_sensor_switch_adc_GPIO26.csv` - Original BOM data
-- `pin_mapping_FINAL_UART3_with_JLC_and_SENSrail_GPIO26.csv` - Pin mapping data
 
 ### 12.5 Raspberry Pi Documentation
 

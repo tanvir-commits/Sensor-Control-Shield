@@ -57,6 +57,12 @@ Raspberry Pi 40-pin Header
 - ADDR → GND (sets address to 0x48)
 - AIN0-AIN3 → ADC connectors J7-J10
 
+**Schematic Reference:**
+
+![ADS1015 Typical Application Circuit](images/ADS1015.jpg)
+
+*Figure 1: ADS1015 Typical Application Circuit - Shows power connections, analog inputs (AIN0-AIN3), I2C interface (SDA/SCL), address configuration, and decoupling capacitor placement.*
+
 ---
 
 ### 2. Load Switch Circuit (SY6280AAC) - Power Control
@@ -87,11 +93,11 @@ Raspberry Pi 40-pin Header
 
 ![SY6280AAC Typical Application Circuit](images/Powe_chip.png)
 
-*Figure 1: SY6280AAC Typical Application Circuit (200mA current limit)*
+*Figure 2: SY6280AAC Typical Application Circuit (200mA current limit)*
 
 ![SY6280AAC PCB Layout](images/Power_chip_layout.png)
 
-*Figure 2: SY6280AAC PCB Layout - Recommended component placement*
+*Figure 3: SY6280AAC PCB Layout - Recommended component placement*
 
 ---
 
@@ -262,7 +268,10 @@ Raspberry Pi 40-pin Header
 | ICs | 2 | ADS1015IDGST, SY6280AAC |
 | Resistors | 7 | 4x 220Ω (LEDs), 34.0kΩ (current limit), 100kΩ (pull-up), 100Ω (series) |
 | Capacitors | 3 | 2x 10µF (load switch), 1x 0.1µF (ADC) |
-| Connectors | 15 | J1-J15 (JST-GH series) |
+| Connectors - 2-pin | 10 | J1-J4 (LEDs), J5-J6 (Buttons), J7-J10 (ADC) - LCSC C22436166 |
+| Connectors - 3-pin | 1 | J14 (UART) - LCSC C161691 |
+| Connectors - 4-pin | 3 | J11 (GPIO), J12-J13 (I2C) - LCSC C22436166 |
+| Connectors - 6-pin | 1 | J15 (SPI) - LCSC C22436166 |
 | Header | 1 | 40-pin Raspberry Pi header |
 | Jumper | 1 | 2-pad solder jumper (optional) |
 
@@ -285,6 +294,14 @@ Raspberry Pi 40-pin Header
 - ADS1015 Schematic: [images/ADS1015.jpg](images/ADS1015.jpg)
 - SY6280AAC Schematic: [images/Powe_chip.png](images/Powe_chip.png)
 - SY6280AAC Layout: [images/Power_chip_layout.png](images/Power_chip_layout.png)
+
+## Design Files
+
+**Bill of Materials (BOM):**
+- [blocks_bom_sensor_switch_adc_GPIO26.csv](blocks_bom_sensor_switch_adc_GPIO26.csv) - Complete component list with LCSC part numbers
+
+**Pin Mapping:**
+- [pin_mapping_FINAL_UART3_with_JLC_and_SENSrail_GPIO26.csv](pin_mapping_FINAL_UART3_with_JLC_and_SENSrail_GPIO26.csv) - Complete pin mapping and connector assignments
 
 ---
 
