@@ -23,5 +23,10 @@ build/
 Thumbs.db
 
 # Project specific
+*.ui
 *.log
-*.tmp
+
+# Hardware files (keep in hardware repo)
+# HARDWARE_SPECIFICATION*.md
+# blocks_bom*.csv
+# pin_mapping*.csv
