@@ -1,8 +1,0 @@
-pyside6>=6.5.0
-# Hardware libraries (will be used later)
-# gpiozero>=1.1.1
-# adafruit-circuitpython-ads1x15>=2.2.15
-# smbus2>=0.4.3
-# spidev>=3.6
-# pyserial>=3.5
-
