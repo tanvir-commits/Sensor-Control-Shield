@@ -53,7 +53,8 @@ class ADS1115Plugin(DevicePlugin):
         # Info
         info_label = QLabel(
             "Click the button below to read all 4 channels directly from the device.\n"
-            "If you see 'Hardware Issue' errors, check: pull-up resistors (4.7kΩ on SDA/SCL), wiring, and power connections."
+            "Note: I2C requires external pull-up resistors (4.7kΩ recommended) on SDA and SCL lines. "
+            "Internal pull-ups are too weak (20-50kΩ) and cannot be enabled while I2C is active."
         )
         info_label.setWordWrap(True)
         info_label.setStyleSheet("padding: 15px; color: #666; font-size: 16pt;")
