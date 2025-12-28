@@ -170,6 +170,7 @@ class ADCManager:
             except Exception as write_error:
                 # If write fails, try just reading the conversion register
                 # (ADC might be in continuous mode or already configured)
+                import sys
                 print(f"ADC: Write failed ({write_error}), trying read-only", file=sys.stderr)
                 time.sleep(0.05)  # Small delay
             
