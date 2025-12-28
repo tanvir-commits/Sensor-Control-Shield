@@ -116,41 +116,43 @@ class ADS1115Plugin(DevicePlugin):
     def _read_adc_channels(self, channel_labels):
         """Read all ADC channels and update display."""
         import sys
-        print("DEBUG: Button clicked!", file=sys.stderr)
-        print(f"DEBUG: self.hardware = {self.hardware}", file=sys.stderr)
+        import smbus2
+        import time
         
-        # Use hardware manager's ADC (handles lazy initialization)
-        if self.hardware and hasattr(self.hardware, 'adc') and self.hardware.adc:
-            print("DEBUG: Hardware ADC found", file=sys.stderr)
-            try:
-                # Use ADC manager's read_all_channels() method
-                # This handles lazy initialization automatically
-                readings = self.hardware.adc.read_all_channels()
-                print(f"DEBUG: ADC readings: {readings}", file=sys.stderr)
-                for ch in range(4):
-                    voltage = readings.get(ch, 0.0)
-                    print(f"DEBUG: Channel {ch}: {voltage} V", file=sys.stderr)
+        # Read directly from the ADS1115 device at self.address
+        try:
+            bus = smbus2.SMBus(self.bus)
+            
+            # Read all 4 channels
+            for ch in range(4):
+                try:
+                    # Read conversion register directly (ADC might be in continuous mode)
+                    # or already configured for this channel
+                    result_data = bus.read_i2c_block_data(self.address, 0x00, 2)
+                    raw_value = (result_data[0] << 8) | result_data[1]
+                    # Convert to signed 16-bit
+                    if raw_value & 0x8000:
+                        raw_value = raw_value - 65536
+                    # Convert to voltage (±4.096V range for ADS1115)
+                    voltage = (raw_value / 32767.0) * 4.096
+                    
                     channel_labels[ch].setText(f"{voltage:.4f} V")
-                    # Use green for real readings, yellow for mock data
-                    if voltage in [1.234, 3.301, 0.012, 5.002]:  # Mock data values
-                        channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #ffc107; min-width: 200px;")
-                    else:
-                        channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #28a745; min-width: 200px;")
-                return
-            except Exception as e:
-                # Error reading from ADC manager
-                print(f"DEBUG: ADC read error: {e}", file=sys.stderr)
-                import traceback
-                traceback.print_exc(file=sys.stderr)
-                error_msg = str(e)[:80]
-                for ch in range(4):
-                    channel_labels[ch].setText(f"Error: {error_msg}")
+                    channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #28a745; min-width: 200px;")
+                    
+                    # Small delay between reads
+                    time.sleep(0.05)
+                except Exception as e:
+                    channel_labels[ch].setText(f"Error")
                     channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
-                return
-        
-        # Fallback: Show error if hardware not available
-        print("DEBUG: Hardware not available", file=sys.stderr)
-        for ch in range(4):
-            channel_labels[ch].setText("Hardware not available")
-            channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
+                    print(f"DEBUG: Error reading channel {ch}: {e}", file=sys.stderr)
+            
+            bus.close()
+            
+        except Exception as e:
+            # Error accessing I2C bus
+            error_msg = str(e)[:80]
+            for ch in range(4):
+                channel_labels[ch].setText(f"I2C Error")
+                channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
+            print(f"DEBUG: I2C error: {e}", file=sys.stderr)
 
