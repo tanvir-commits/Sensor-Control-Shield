@@ -123,11 +123,39 @@ class ADS1115Plugin(DevicePlugin):
         try:
             bus = smbus2.SMBus(self.bus)
             
+            # MUX values for each channel (bits 14-12 of config register)
+            # 0x4000 = AIN0 vs GND (channel 0)
+            # 0x5000 = AIN1 vs GND (channel 1)
+            # 0x6000 = AIN2 vs GND (channel 2)
+            # 0x7000 = AIN3 vs GND (channel 3)
+            mux_values = [0x4000, 0x5000, 0x6000, 0x7000]
+            
             # Read all 4 channels
             for ch in range(4):
                 try:
-                    # Read conversion register directly (ADC might be in continuous mode)
-                    # or already configured for this channel
+                    # Configure ADC for this channel and start conversion
+                    # Bit 15: OS = 1 (start single conversion)
+                    # Bits 14-12: MUX = channel selection
+                    # Bits 11-9: PGA = 010 (±4.096V range)
+                    # Bit 8: MODE = 1 (single-shot mode)
+                    # Bits 7-5: DR = 100 (128 SPS)
+                    config_val = 0x8000 | mux_values[ch] | 0x0100 | 0x0080 | 0x0010
+                    
+                    # Try to write config (might fail if ADC is locked, but try anyway)
+                    try:
+                        bus.write_i2c_block_data(self.address, 0x01, [
+                            (config_val >> 8) & 0xFF,
+                            config_val & 0xFF
+                        ])
+                    except:
+                        # If write fails, ADC might be in continuous mode or locked
+                        # Just try reading anyway
+                        pass
+                    
+                    # Wait for conversion (if we wrote config)
+                    time.sleep(0.1)
+                    
+                    # Read conversion result
                     result_data = bus.read_i2c_block_data(self.address, 0x00, 2)
                     raw_value = (result_data[0] << 8) | result_data[1]
                     # Convert to signed 16-bit
@@ -139,8 +167,6 @@ class ADS1115Plugin(DevicePlugin):
                     channel_labels[ch].setText(f"{voltage:.4f} V")
                     channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #28a745; min-width: 200px;")
                     
-                    # Small delay between reads
-                    time.sleep(0.05)
                 except Exception as e:
                     channel_labels[ch].setText(f"Error")
                     channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
