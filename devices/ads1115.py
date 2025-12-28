@@ -52,8 +52,8 @@ class ADS1115Plugin(DevicePlugin):
         
         # Info
         info_label = QLabel(
-            "This ADC is already integrated into the Analog section.\n"
-            "Click the button below to read all 4 channels directly from the device."
+            "Click the button below to read all 4 channels directly from the device.\n"
+            "If you see 'Hardware Issue' errors, check: pull-up resistors (4.7kΩ on SDA/SCL), wiring, and power connections."
         )
         info_label.setWordWrap(True)
         info_label.setStyleSheet("padding: 15px; color: #666; font-size: 16pt;")
@@ -177,7 +177,14 @@ class ADS1115Plugin(DevicePlugin):
                 # Update display
                 if not write_works:
                     # Writes don't work - show hardware issue message
-                    channel_labels[ch].setText("Write Error")
+                    if ch == 0:
+                        channel_labels[ch].setText("Hardware Issue")
+                    elif ch == 1:
+                        channel_labels[ch].setText("Check Pull-ups")
+                    elif ch == 2:
+                        channel_labels[ch].setText("Check Wiring")
+                    else:
+                        channel_labels[ch].setText("Check Power")
                     channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
                 elif abs(voltage) > 0.001:
                     channel_labels[ch].setText(f"{voltage:.4f} V")
@@ -190,10 +197,8 @@ class ADS1115Plugin(DevicePlugin):
             
             # Show warning if writes don't work
             if not write_works:
-                # Update first channel label with detailed message
-                channel_labels[0].setText("I2C Write Failed")
-                channel_labels[0].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
-                print("DEBUG: ADC cannot be configured - I2C writes failing. Check hardware (pull-ups, wiring, power).", file=sys.stderr)
+                print("DEBUG: ADC cannot be configured - I2C writes failing.", file=sys.stderr)
+                print("DEBUG: Possible causes: weak pull-ups (need 4.7kΩ on SDA/SCL), wiring issue, or power problem.", file=sys.stderr)
             
         except Exception as e:
             # Error accessing I2C bus
