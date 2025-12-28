@@ -10,48 +10,32 @@ class ADCManager:
     def __init__(self):
         self.is_pi = is_raspberry_pi()
         self.adc = None
-        self._i2c = None
-        # Don't initialize I2C bus during __init__ to avoid interfering with I2C scanner
-        # Will be created lazily on first read
+        
+        if self.is_pi:
+            self._init_pi()
     
-    def _get_i2c(self):
-        """Get or create I2C bus (lazy initialization)."""
-        if not self.is_pi:
-            return None
-        
-        if self._i2c is None:
-            try:
-                import board
-                # Create I2C bus only when needed
-                self._i2c = board.I2C()
-            except Exception as e:
-                print(f"Failed to create I2C bus: {e}")
-                return None
-        
-        return self._i2c
+    def _init_pi(self):
+        """Initialize on Raspberry Pi."""
+        try:
+            import adafruit_ads1x15.ads1115 as ADS
+            from adafruit_ads1x15.ads1x15 import Mode
+            import board
+            import busio
+            
+            # Use board.I2C() which automatically uses the correct I2C bus
+            # On Pi, this uses I2C1 (pins 3/5) by default
+            i2c = board.I2C()
+            self.adc = ADS.ADS1115(i2c, address=ADC_ADDRESS)
+            self.adc.mode = Mode.SINGLE
+        except (ImportError, RuntimeError, ValueError, OSError, IOError) as e:
+            # Hardware not available, library not installed, or I/O error
+            # Log error but continue with mock data
+            # This is normal if ADC isn't connected or on different bus
+            print(f"ADC init error (using mock data): {e}")
+            self.adc = None
     
     def read_channel(self, channel: int) -> float:
         """Read ADC channel (0-3)."""
-        if not self.is_pi:
-            # Mock data
-            mock_voltages = {0: 1.234, 1: 3.301, 2: 0.012, 3: 5.002}
-            return mock_voltages.get(channel, 0.0)
-        
-        # Lazy initialization: create ADC only when needed
-        if self.adc is None:
-            i2c = self._get_i2c()
-            if i2c:
-                try:
-                    import adafruit_ads1x15.ads1115 as ADS
-                    from adafruit_ads1x15.ads1x15 import Mode
-                    self.adc = ADS.ADS1115(i2c, address=ADC_ADDRESS)
-                    self.adc.mode = Mode.SINGLE
-                except (ImportError, RuntimeError, ValueError, OSError, IOError) as e:
-                    # Hardware not available, library not installed, or I/O error
-                    # Log error but continue with mock data
-                    print(f"ADC init error (using mock data): {e}")
-                    self.adc = None
-        
         if self.adc:
             try:
                 import adafruit_ads1x15.ads1115 as ADS

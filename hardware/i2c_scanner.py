@@ -29,33 +29,14 @@ class I2CScanner:
         # Then check other buses (Pi 5 may use 13/14)
         bus_priority = [1, 3, 0, 14, 13, 10, 11, 12, 15]
         
-        # First, try to find a bus with devices AND that properly raises exceptions
+        # First, try to find a bus with devices
         for bus_num in bus_priority:
             if os.path.exists(f"/dev/i2c-{bus_num}"):
-                # Quick check if this bus is functional (raises exceptions for invalid addresses)
-                # and has real devices
+                # Quick check if this bus has devices
                 try:
                     import smbus2
                     test_bus = smbus2.SMBus(bus_num)
-                    # Test that bus properly raises exceptions for invalid addresses
-                    # If it doesn't raise exceptions, it's not a real functional I2C bus
-                    test_invalid = False
-                    try:
-                        test_bus.write_quick(0x08)  # Address that likely has no device
-                        # If we get here, bus doesn't raise exceptions - skip it
-                        test_invalid = True
-                    except (IOError, OSError, TimeoutError):
-                        # Good - bus properly raises exceptions
-                        test_invalid = False
-                    except:
-                        # Other exception - probably not a real bus
-                        test_invalid = True
-                    
-                    if test_invalid:
-                        test_bus.close()
-                        continue  # Skip this bus, it's not functional
-                    
-                    # Now check if this bus has any real devices
+                    # Quick scan of a few addresses
                     found_any = False
                     for addr in [0x48, 0x37, 0x3a, 0x50, 0x68]:  # Common addresses
                         try:
@@ -114,9 +95,8 @@ class I2CScanner:
                     devices.append(addr)
                     # Small delay between addresses to avoid bus congestion
                     time.sleep(0.001)
-                except (IOError, OSError, TimeoutError):
+                except (IOError, OSError):
                     # Device not present at this address - this is normal
-                    # TimeoutError is a subclass of OSError but explicitly catch it
                     pass
                 except Exception as e:
                     # Other errors (permission, bus error, etc.)
