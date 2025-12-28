@@ -2,7 +2,7 @@
 
 import sys
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                               QApplication)
+                               QApplication, QTabWidget)
 from PySide6.QtCore import QTimer, Qt
 
 from .status_bar import StatusBar
@@ -12,6 +12,17 @@ from .sections.button_section import ButtonSection
 from .sections.i2c_section import I2CSection
 from .sections.spi_section import SPISection
 
+# Optional device system
+try:
+    from config.device_config import ENABLE_DEVICE_SYSTEM
+    if ENABLE_DEVICE_SYSTEM:
+        from .device_tabs.device_tab import DeviceTab
+        DEVICE_SYSTEM_AVAILABLE = True
+    else:
+        DEVICE_SYSTEM_AVAILABLE = False
+except Exception:
+    DEVICE_SYSTEM_AVAILABLE = False
+
 
 class MainWindow(QMainWindow):
     """Main application window."""
@@ -19,6 +30,7 @@ class MainWindow(QMainWindow):
     def __init__(self, mock_hardware=None, parent=None):
         super().__init__(parent)
         self.mock_hardware = mock_hardware
+        self.device_tabs = {}  # Track open device tabs: (bus, address) -> tab
         
         self.setWindowTitle("Device Panel")
         self.setMinimumSize(900, 850)
@@ -62,9 +74,23 @@ class MainWindow(QMainWindow):
     
     def setup_ui(self):
         """Set up the main UI layout."""
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+        # Create hardware widget (existing functionality)
+        hardware_widget = self.create_hardware_widget()
         
+        # Create tab widget if device system available
+        if DEVICE_SYSTEM_AVAILABLE:
+            self.tab_widget = QTabWidget()
+            self.tab_widget.addTab(hardware_widget, "Hardware")
+            self.tab_widget.setTabsClosable(True)
+            self.tab_widget.tabCloseRequested.connect(self.on_tab_close_requested)
+            self.setCentralWidget(self.tab_widget)
+        else:
+            # No device system - use single widget (backward compatible)
+            self.setCentralWidget(hardware_widget)
+    
+    def create_hardware_widget(self):
+        """Create the hardware control widget (existing functionality)."""
+        widget = QWidget()
         main_layout = QVBoxLayout()
         main_layout.setSpacing(20)
         main_layout.setContentsMargins(20, 15, 20, 20)
@@ -100,6 +126,8 @@ class MainWindow(QMainWindow):
         
         self.i2c_section = I2CSection()
         self.i2c_section.scan_requested.connect(self.on_i2c_scan)
+        if DEVICE_SYSTEM_AVAILABLE:
+            self.i2c_section.device_clicked.connect(self.on_device_clicked)
         bus_row.addWidget(self.i2c_section)
         
         self.spi_section = SPISection()
@@ -111,7 +139,8 @@ class MainWindow(QMainWindow):
         content_layout.addStretch()
         
         main_layout.addLayout(content_layout)
-        central_widget.setLayout(main_layout)
+        widget.setLayout(main_layout)
+        return widget
     
     def update_all(self):
         """Update all UI elements with current hardware state."""
@@ -211,4 +240,54 @@ class MainWindow(QMainWindow):
                 self.status_bar.update_status("SPI", "NOT VERIFIED", "#ff9800")
             else:
                 self.status_bar.update_status("SPI", "ERROR", "#f44336")
+    
+    def on_device_clicked(self, address: int, bus: int):
+        """Handle device click - open device tab."""
+        if not DEVICE_SYSTEM_AVAILABLE:
+            return
+        
+        # Check if tab already exists
+        tab_key = (bus, address)
+        if tab_key in self.device_tabs:
+            # Tab exists - switch to it
+            if hasattr(self, 'tab_widget'):
+                for i in range(self.tab_widget.count()):
+                    if self.tab_widget.widget(i) == self.device_tabs[tab_key]:
+                        self.tab_widget.setCurrentIndex(i)
+                        break
+            return
+        
+        # Create new device tab
+        try:
+            device_tab = DeviceTab(bus, address)
+            tab_title = f"Device: 0x{address:02X}"
+            
+            if hasattr(self, 'tab_widget'):
+                index = self.tab_widget.addTab(device_tab, tab_title)
+                self.tab_widget.setCurrentIndex(index)
+                self.device_tabs[tab_key] = device_tab
+        except Exception as e:
+            print(f"Error opening device tab: {e}", file=sys.stderr)
+    
+    def on_tab_close_requested(self, index: int):
+        """Handle tab close request."""
+        if not hasattr(self, 'tab_widget'):
+            return
+        
+        widget = self.tab_widget.widget(index)
+        if widget is None:
+            return
+        
+        # Don't allow closing the Hardware tab (index 0)
+        if index == 0:
+            return
+        
+        # Remove from device_tabs dict
+        for key, tab in list(self.device_tabs.items()):
+            if tab == widget:
+                del self.device_tabs[key]
+                break
+        
+        # Remove tab
+        self.tab_widget.removeTab(index)
 

@@ -1,7 +1,7 @@
 """I2C bus scanning section."""
 
 from PySide6.QtWidgets import (QGroupBox, QVBoxLayout, QPushButton, 
-                               QListWidget, QLabel)
+                               QListWidget, QLabel, QListWidgetItem)
 from PySide6.QtCore import Qt, Signal
 
 
@@ -10,6 +10,8 @@ class I2CSection(QGroupBox):
     
     # Signal emitted when scan is requested
     scan_requested = Signal()
+    # Signal emitted when device is clicked (address, bus)
+    device_clicked = Signal(int, int)
     
     def __init__(self, parent=None):
         super().__init__("I²C", parent)
@@ -85,8 +87,17 @@ class I2CSection(QGroupBox):
                 background-color: #007bff;
                 color: white;
             }
+            QListWidget::item:hover {
+                background-color: #e3f2fd;
+                cursor: pointer;
+            }
         """)
+        # Make items clickable
+        self.results_list.itemDoubleClicked.connect(self.on_device_double_clicked)
         layout.addWidget(self.results_list)
+        
+        # Store current bus number for device clicks
+        self.current_bus = None
         
         # Status message
         self.status_label = QLabel("Ready to scan")
@@ -129,6 +140,7 @@ class I2CSection(QGroupBox):
         # Update bus label
         if bus_num is not None:
             self.bus_label.setText(f"Bus: {bus_num}")
+            self.current_bus = bus_num
         
         self.results_list.clear()
         
@@ -172,7 +184,33 @@ class I2CSection(QGroupBox):
                 }
             """)
             
-            # Add devices to list
-            for addr in devices:
-                self.results_list.addItem(f"0x{addr:02X}")
+            # Add devices to list with suggestions
+            try:
+                from devices.registry import get_registry
+                registry = get_registry()
+                for addr in devices:
+                    suggestions = registry.lookup(addr)
+                    if suggestions:
+                        device_name = suggestions[0][0]
+                        if device_name == "Unknown Device":
+                            text = f"0x{addr:02X}"
+                        else:
+                            text = f"0x{addr:02X} - {device_name}"
+                    else:
+                        text = f"0x{addr:02X}"
+                    item = QListWidgetItem(text)
+                    item.setData(Qt.ItemDataRole.UserRole, addr)  # Store address
+                    self.results_list.addItem(item)
+            except Exception:
+                # Fallback if device system not available
+                for addr in devices:
+                    self.results_list.addItem(f"0x{addr:02X}")
+    
+    def on_device_double_clicked(self, item: QListWidgetItem):
+        """Handle device double-click to open device tab."""
+        if self.current_bus is None:
+            return
+        address = item.data(Qt.ItemDataRole.UserRole)
+        if address is not None:
+            self.device_clicked.emit(address, self.current_bus)
 
