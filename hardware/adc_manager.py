@@ -111,43 +111,67 @@ class ADCManager:
         CONVERSION_REG = 0x00  # Conversion result (read-only)
         CONFIG_REG = 0x01      # Configuration register (read/write)
         
-        # Channel mapping for ADS1115 config register
-        # Bits 14-12: MUX (channel selection)
-        # 000 = AIN0 vs GND (channel 0)
-        # 001 = AIN1 vs GND (channel 1)
-        # 010 = AIN2 vs GND (channel 2)
-        # 011 = AIN3 vs GND (channel 3)
-        mux_values = [0x4000, 0x5000, 0x6000, 0x7000]  # Bits 14-12
-        
-        # Config register value:
-        # Bit 15: OS (operational status) = 1 (start single conversion)
-        # Bits 14-12: MUX (channel) = channel selection
-        # Bits 11-9: PGA = 010 (±4.096V range)
-        # Bit 8: MODE = 1 (single-shot mode)
-        # Bits 7-5: DR = 100 (128 SPS)
-        # Bits 4-0: Other settings = 0
-        config = 0x8000 | mux_values[channel] | 0x0100 | 0x0080 | 0x0010
-        
         try:
             bus = smbus2.SMBus(1)  # I2C bus 1
             
-            # Write config register to start conversion
-            # ADS1115 uses big-endian 16-bit values
-            bus.write_i2c_block_data(ADC_ADDRESS, CONFIG_REG, [
-                (config >> 8) & 0xFF,  # High byte
-                config & 0xFF           # Low byte
-            ])
-            
-            # Wait for conversion (poll OS bit)
-            timeout = 0.1  # 100ms timeout
-            start_time = time.time()
-            while time.time() - start_time < timeout:
-                time.sleep(0.01)
-                # Read config register to check OS bit
+            # First, try to read current config to see if ADC is in continuous mode
+            try:
                 config_data = bus.read_i2c_block_data(ADC_ADDRESS, CONFIG_REG, 2)
-                config_status = (config_data[0] << 8) | config_data[1]
-                if (config_status & 0x8000) == 0:  # OS bit cleared = conversion done
-                    break
+                config = (config_data[0] << 8) | config_data[1]
+                mode = (config >> 8) & 0x1
+                current_mux = (config >> 12) & 0x7
+                
+                # If in continuous mode and already on the right channel, just read
+                if mode == 0 and current_mux == (4 + channel):
+                    result_data = bus.read_i2c_block_data(ADC_ADDRESS, CONVERSION_REG, 2)
+                    raw_value = (result_data[0] << 8) | result_data[1]
+                    if raw_value & 0x8000:
+                        raw_value = raw_value - 65536
+                    bus.close()
+                    voltage = (raw_value / 32767.0) * 4.096
+                    return voltage
+            except:
+                pass  # If we can't read config, try writing anyway
+            
+            # Channel mapping for ADS1115 config register
+            # Bits 14-12: MUX (channel selection)
+            # 000 = AIN0 vs GND (channel 0)
+            # 001 = AIN1 vs GND (channel 1)
+            # 010 = AIN2 vs GND (channel 2)
+            # 011 = AIN3 vs GND (channel 3)
+            mux_values = [0x4000, 0x5000, 0x6000, 0x7000]  # Bits 14-12
+            
+            # Config register value:
+            # Bit 15: OS (operational status) = 1 (start single conversion)
+            # Bits 14-12: MUX (channel) = channel selection
+            # Bits 11-9: PGA = 010 (±4.096V range)
+            # Bit 8: MODE = 1 (single-shot mode)
+            # Bits 7-5: DR = 100 (128 SPS)
+            # Bits 4-0: Other settings = 0
+            config = 0x8000 | mux_values[channel] | 0x0100 | 0x0080 | 0x0010
+            
+            # Try writing config register
+            try:
+                bus.write_i2c_block_data(ADC_ADDRESS, CONFIG_REG, [
+                    (config >> 8) & 0xFF,  # High byte
+                    config & 0xFF           # Low byte
+                ])
+                
+                # Wait for conversion (poll OS bit)
+                timeout = 0.1  # 100ms timeout
+                start_time = time.time()
+                while time.time() - start_time < timeout:
+                    time.sleep(0.01)
+                    # Read config register to check OS bit
+                    config_data = bus.read_i2c_block_data(ADC_ADDRESS, CONFIG_REG, 2)
+                    config_status = (config_data[0] << 8) | config_data[1]
+                    if (config_status & 0x8000) == 0:  # OS bit cleared = conversion done
+                        break
+            except Exception as write_error:
+                # If write fails, try just reading the conversion register
+                # (ADC might be in continuous mode or already configured)
+                print(f"ADC: Write failed ({write_error}), trying read-only", file=sys.stderr)
+                time.sleep(0.05)  # Small delay
             
             # Read conversion result
             result_data = bus.read_i2c_block_data(ADC_ADDRESS, CONVERSION_REG, 2)
