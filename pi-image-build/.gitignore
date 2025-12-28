@@ -1,0 +1,22 @@
+# Build artifacts
+*.img
+*.img.xz
+*.img.zip
+*.sha256
+
+# Mount points
+mnt/
+mount/
+
+# Downloaded images
+downloads/
+*.zip
+
+# Temporary files
+*.tmp
+*.log
+
+# Loop devices (created during build)
+loop*
+
+

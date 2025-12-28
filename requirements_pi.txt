@@ -1,0 +1,14 @@
+# Requirements for Raspberry Pi
+# Install with: pip install -r requirements_pi.txt
+
+# GUI Framework
+pyside6>=6.5.0
+
+# Hardware Libraries (Raspberry Pi)
+gpiozero>=1.1.1
+adafruit-circuitpython-ads1x15>=2.2.15
+smbus2>=0.4.3
+spidev>=3.6
+pyserial>=3.5
+
+

@@ -45,13 +45,31 @@ class I2CSection(QGroupBox):
                 background: #004085;
             }
         """)
-        scan_button.clicked.connect(self.scan_requested.emit)
+        scan_button.clicked.connect(self._on_scan_clicked)
+        self.scan_button = scan_button
         layout.addWidget(scan_button)
+        
+        # Bus selector (if multiple buses available)
+        self.bus_label = QLabel("Bus: Auto")
+        self.bus_label.setStyleSheet("""
+            QLabel {
+                color: #666;
+                font-size: 9pt;
+                padding: 4px;
+            }
+        """)
+        layout.addWidget(self.bus_label)
         
         # Results list
         self.results_list = QListWidget()
-        self.results_list.setMaximumHeight(120)
+        self.results_list.setMaximumHeight(180)  # Increased to accommodate larger font
         self.results_list.setAlternatingRowColors(True)
+        # Set larger font for device addresses
+        font = self.results_list.font()
+        font.setPointSize(14)
+        font.setBold(True)
+        font.setFamily("Segoe UI, Arial, sans-serif")
+        self.results_list.setFont(font)
         self.results_list.setStyleSheet("""
             QListWidget {
                 border: 2px solid #dee2e6;
@@ -60,7 +78,7 @@ class I2CSection(QGroupBox):
                 padding: 5px;
             }
             QListWidget::item {
-                padding: 6px;
+                padding: 8px;
                 border-radius: 4px;
             }
             QListWidget::item:selected {
@@ -87,13 +105,31 @@ class I2CSection(QGroupBox):
         layout.addStretch()
         self.setLayout(layout)
     
-    def update_results(self, devices: list, status: str = "OK"):
+    def _on_scan_clicked(self):
+        """Handle scan button click - provide visual feedback."""
+        self.scan_button.setEnabled(False)
+        self.scan_button.setText("Scanning...")
+        self.status_label.setText("Scanning I²C bus...")
+        self.results_list.clear()
+        # Emit signal to trigger actual scan
+        self.scan_requested.emit()
+    
+    def update_results(self, devices: list, status: str = "OK", bus_num: int = None):
         """Update I2C scan results.
         
         Args:
             devices: List of device addresses (integers)
             status: Status string ("OK", "NO_DEVICES", "ERROR")
+            bus_num: I2C bus number used for scan
         """
+        # Re-enable scan button
+        self.scan_button.setEnabled(True)
+        self.scan_button.setText("Scan I²C")
+        
+        # Update bus label
+        if bus_num is not None:
+            self.bus_label.setText(f"Bus: {bus_num}")
+        
         self.results_list.clear()
         
         if status == "ERROR":

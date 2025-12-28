@@ -1,0 +1,21 @@
+[Unit]
+Description=Device Panel GUI Application
+After=graphical.target network-online.target
+Wants=graphical.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/home/pi/.Xauthority"
+Environment="PYTHONPATH=/opt/device-panel"
+WorkingDirectory=/opt/device-panel
+ExecStart=/usr/bin/python3 -u /opt/device-panel/device_panel.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical.target

@@ -21,8 +21,8 @@ class MainWindow(QMainWindow):
         self.mock_hardware = mock_hardware
         
         self.setWindowTitle("Device Panel")
-        self.setMinimumSize(900, 700)
-        self.resize(1000, 750)
+        self.setMinimumSize(900, 850)
+        self.resize(1000, 900)
         
         # Apply modern styling
         self.setStyleSheet("""
@@ -145,9 +145,12 @@ class MainWindow(QMainWindow):
                 self.status_bar.update_status("Sensor Power", power_state, color)
             
             if hasattr(self.mock_hardware, 'i2c'):
-                i2c_status = self.mock_hardware.i2c.get_status()
-                color = "#4CAF50" if i2c_status == "OK" else "#666"
-                self.status_bar.update_status("I²C", i2c_status, color)
+                try:
+                    i2c_status = self.mock_hardware.i2c.get_status()
+                    color = "#4CAF50" if i2c_status == "OK" else "#666"
+                    self.status_bar.update_status("I²C", i2c_status, color)
+                except:
+                    self.status_bar.update_status("I²C", "NOT VERIFIED", "#666")
         except Exception as e:
             # Log error but don't crash - just skip this update cycle
             import traceback
@@ -162,15 +165,37 @@ class MainWindow(QMainWindow):
     def on_i2c_scan(self):
         """Handle I2C scan request."""
         if self.mock_hardware and hasattr(self.mock_hardware, 'i2c'):
-            devices = self.mock_hardware.i2c.scan()
-            status = "OK" if devices else "NO_DEVICES"
-            self.i2c_section.update_results(devices, status)
-            
-            # Update status bar
-            if devices:
-                self.status_bar.update_status("I²C", f"OK ({len(devices)} devices)", "#4CAF50")
-            else:
-                self.status_bar.update_status("I²C", "NO DEVICES", "#ff9800")
+            try:
+                # Perform actual I2C scan
+                devices = self.mock_hardware.i2c.scan()
+                bus_num = self.mock_hardware.i2c.bus
+                status = "OK" if devices else "NO_DEVICES"
+                self.i2c_section.update_results(devices, status, bus_num)
+                
+                # Dynamically resize window if devices are found and window is too small
+                if devices and len(devices) > 0:
+                    current_height = self.height()
+                    # If window is less than 900px tall, grow it to accommodate devices
+                    if current_height < 900:
+                        new_height = max(900, current_height + 50)
+                        self.resize(self.width(), new_height)
+                
+                # Update status bar
+                if devices:
+                    self.status_bar.update_status("I²C", f"OK ({len(devices)} devices)", "#4CAF50")
+                else:
+                    self.status_bar.update_status("I²C", "NO DEVICES", "#ff9800")
+            except RuntimeError as e:
+                # Specific error message from scanner
+                error_msg = str(e)
+                self.i2c_section.update_results([], "ERROR")
+                self.status_bar.update_status("I²C", "ERROR", "#f44336")
+                print(f"I2C scan error: {error_msg}", file=sys.stderr)
+            except Exception as e:
+                # Generic error
+                self.i2c_section.update_results([], "ERROR")
+                self.status_bar.update_status("I²C", "ERROR", "#f44336")
+                print(f"I2C scan error: {e}", file=sys.stderr)
     
     def on_spi_test(self):
         """Handle SPI test request."""

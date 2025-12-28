@@ -9,7 +9,23 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from ui.main_window import MainWindow
-from mock.mock_hardware import MockHardware
+from hardware.gpio_manager import GPIOManager
+from hardware.adc_manager import ADCManager
+from hardware.i2c_scanner import I2CScanner
+from hardware.spi_tester import SPITester
+from hardware.power_manager import PowerManager
+from config.pins import I2C_BUS
+
+
+class Hardware:
+    """Container for all hardware managers."""
+    
+    def __init__(self):
+        self.gpio = GPIOManager()
+        self.adc = ADCManager()
+        self.i2c = I2CScanner(bus=I2C_BUS)
+        self.spi = SPITester()
+        self.power = PowerManager()
 
 
 def main():
@@ -19,11 +35,11 @@ def main():
         app = QApplication(sys.argv)
         app.setApplicationName("Device Panel")
         
-        # Create mock hardware for UI design
-        mock_hw = MockHardware()
+        # Create hardware managers
+        hardware = Hardware()
         
         # Create and show main window
-        window = MainWindow(mock_hardware=mock_hw)
+        window = MainWindow(mock_hardware=hardware)
         window.show()
         
         # Run application
@@ -37,4 +53,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

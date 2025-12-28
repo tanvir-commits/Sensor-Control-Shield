@@ -1,0 +1,22 @@
+# Device Panel Custom Image - Boot Configuration
+# These settings enable I2C, SPI, and other hardware interfaces
+
+# Enable I2C
+dtparam=i2c_arm=on
+dtparam=i2c_arm_baudrate=100000
+
+# Enable SPI
+dtparam=spi=on
+
+# Enable UART (optional, for serial debugging)
+enable_uart=1
+
+# GPU memory split (adjust if needed)
+gpu_mem=128
+
+# Additional optimizations
+# Uncomment if needed:
+# dtparam=audio=on
+# dtoverlay=vc4-kms-v3d
+
+
