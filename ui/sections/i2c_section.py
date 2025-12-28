@@ -92,7 +92,7 @@ class I2CSection(QGroupBox):
                 cursor: pointer;
             }
         """)
-        # Make items clickable
+        # Make items clickable (double-click to open device tab)
         self.results_list.itemDoubleClicked.connect(self.on_device_double_clicked)
         layout.addWidget(self.results_list)
         
@@ -201,16 +201,30 @@ class I2CSection(QGroupBox):
                     item = QListWidgetItem(text)
                     item.setData(Qt.ItemDataRole.UserRole, addr)  # Store address
                     self.results_list.addItem(item)
-            except Exception:
-                # Fallback if device system not available
+            except Exception as e:
+                # Fallback if device system not available - still use QListWidgetItem
+                import sys
+                print(f"Warning: Device registry not available: {e}", file=sys.stderr)
                 for addr in devices:
-                    self.results_list.addItem(f"0x{addr:02X}")
+                    item = QListWidgetItem(f"0x{addr:02X}")
+                    item.setData(Qt.ItemDataRole.UserRole, addr)  # Store address for double-click
+                    self.results_list.addItem(item)
     
     def on_device_double_clicked(self, item: QListWidgetItem):
         """Handle device double-click to open device tab."""
+        import sys
+        print(f"DEBUG: Device double-clicked: {item.text()}", file=sys.stderr)
+        
         if self.current_bus is None:
+            print(f"DEBUG: current_bus is None, cannot open device tab", file=sys.stderr)
             return
+        
         address = item.data(Qt.ItemDataRole.UserRole)
+        print(f"DEBUG: Address from item data: {address}, bus: {self.current_bus}", file=sys.stderr)
+        
         if address is not None:
+            print(f"DEBUG: Emitting device_clicked signal: address=0x{address:02X}, bus={self.current_bus}", file=sys.stderr)
             self.device_clicked.emit(address, self.current_bus)
+        else:
+            print(f"DEBUG: Address is None, cannot emit signal", file=sys.stderr)
 

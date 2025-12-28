@@ -13,10 +13,11 @@ from devices.loader import get_loader
 class DeviceTab(QWidget):
     """Tab widget for a single I2C device."""
     
-    def __init__(self, bus: int, address: int, parent=None):
+    def __init__(self, bus: int, address: int, hardware=None, parent=None):
         super().__init__(parent)
         self.bus = bus
         self.address = address
+        self.hardware = hardware  # Hardware manager for accessing ADC, etc.
         self.registry = get_registry()
         self.loader = get_loader()
         self.device: Optional[DevicePlugin] = None
@@ -34,18 +35,43 @@ class DeviceTab(QWidget):
         # Header
         header = QHBoxLayout()
         title = QLabel(f"Device: 0x{self.address:02X}")
-        title.setStyleSheet("font-size: 16pt; font-weight: bold;")
+        title.setStyleSheet("font-size: 20pt; font-weight: bold; padding: 10px;")
         header.addWidget(title)
         header.addStretch()
         layout.addLayout(header)
         
         # Device selection (if multiple suggestions)
         self.device_combo = QComboBox()
-        self.device_combo.currentTextChanged.connect(self.on_device_selected)
+        font = self.device_combo.font()
+        font.setPointSize(16)
+        font.setBold(True)
+        self.device_combo.setFont(font)
+        self.device_combo.setStyleSheet("""
+            QComboBox {
+                padding: 12px;
+                font-size: 16pt;
+                font-weight: bold;
+                min-height: 50px;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox::down-arrow {
+                width: 20px;
+                height: 20px;
+            }
+        """)
+        self.device_combo.currentIndexChanged.connect(self.on_device_selected)
         layout.addWidget(self.device_combo)
         
         # Tab widget for device sections
         self.tabs = QTabWidget()
+        # Set larger font for tabs
+        tab_font = self.tabs.font()
+        tab_font.setPointSize(16)
+        tab_font.setBold(True)
+        self.tabs.setFont(tab_font)
         self.tabs.setStyleSheet("""
             QTabWidget::pane {
                 border: 1px solid #ddd;
@@ -53,12 +79,18 @@ class DeviceTab(QWidget):
                 background: white;
             }
             QTabBar::tab {
-                padding: 8px 16px;
-                margin-right: 2px;
+                padding: 15px 25px;
+                margin-right: 3px;
+                font-size: 16pt;
+                font-weight: bold;
+                min-width: 120px;
             }
             QTabBar::tab:selected {
                 background: #007bff;
                 color: white;
+            }
+            QTabBar::tab:hover {
+                background: #e3f2fd;
             }
         """)
         
@@ -90,10 +122,13 @@ class DeviceTab(QWidget):
         
         # Auto-select first suggestion and load plugin
         if suggestions:
-            self.on_device_selected(0)
+            self.device_combo.setCurrentIndex(0)
+            # on_device_selected will be called automatically via signal
     
     def on_device_selected(self, index: int):
         """Handle device selection."""
+        if index < 0:
+            return
         plugin_name = self.device_combo.itemData(index)
         self.selected_plugin_name = plugin_name
         
@@ -104,6 +139,9 @@ class DeviceTab(QWidget):
             # Try to load plugin
             self.device = self.loader.create_device(self.bus, self.address, plugin_name)
             if self.device:
+                # Pass hardware manager to plugin if it supports it
+                if hasattr(self.device, 'set_hardware'):
+                    self.device.set_hardware(self.hardware)
                 self.load_device_info()
                 self.load_device_test()
             else:
@@ -134,13 +172,23 @@ class DeviceTab(QWidget):
         
         # Create info display
         info_group = QGroupBox("Device Information")
+        info_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 18pt;
+                font-weight: bold;
+                padding-top: 20px;
+                margin-top: 10px;
+            }
+        """)
         info_layout = QVBoxLayout()
+        info_layout.setSpacing(15)
         
         for key, value in info.items():
             row = QHBoxLayout()
             label = QLabel(f"{key.replace('_', ' ').title()}:")
-            label.setStyleSheet("font-weight: bold; min-width: 120px;")
+            label.setStyleSheet("font-weight: bold; min-width: 200px; font-size: 16pt;")
             value_label = QLabel(str(value))
+            value_label.setStyleSheet("font-size: 16pt;")
             row.addWidget(label)
             row.addWidget(value_label)
             row.addStretch()
@@ -162,9 +210,14 @@ class DeviceTab(QWidget):
             else:
                 self.show_no_test_interface()
         except Exception as e:
-            error_label = QLabel(f"Error loading test interface: {e}")
-            error_label.setStyleSheet("color: red; padding: 10px;")
+            import traceback
+            error_msg = f"Error loading test interface: {e}\n\n{traceback.format_exc()}"
+            error_label = QLabel(error_msg)
+            error_label.setStyleSheet("color: red; padding: 20px; font-size: 14pt;")
+            error_label.setWordWrap(True)
             self.test_layout.addWidget(error_label)
+            print(f"Error in load_device_test: {e}", file=__import__('sys').stderr)
+            traceback.print_exc()
         
         self.test_layout.addStretch()
     
@@ -178,7 +231,7 @@ class DeviceTab(QWidget):
             "• Check for community plugins"
         )
         label.setWordWrap(True)
-        label.setStyleSheet("padding: 20px; color: #666;")
+        label.setStyleSheet("padding: 20px; color: #666; font-size: 16pt;")
         self.info_layout.addWidget(label)
         self.info_layout.addStretch()
     
@@ -190,13 +243,13 @@ class DeviceTab(QWidget):
             "You can create a custom plugin to support it."
         )
         label.setWordWrap(True)
-        label.setStyleSheet("padding: 20px; color: #666;")
+        label.setStyleSheet("padding: 20px; color: #666; font-size: 16pt;")
         self.info_layout.addWidget(label)
         self.info_layout.addStretch()
     
     def show_no_test_interface(self):
         """Show message when device has no test interface."""
         label = QLabel("This device does not provide a test interface.")
-        label.setStyleSheet("padding: 20px; color: #666;")
+        label.setStyleSheet("padding: 20px; color: #666; font-size: 16pt;")
         self.test_layout.addWidget(label)
 

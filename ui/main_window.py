@@ -16,12 +16,21 @@ from .sections.spi_section import SPISection
 try:
     from config.device_config import ENABLE_DEVICE_SYSTEM
     if ENABLE_DEVICE_SYSTEM:
-        from .device_tabs.device_tab import DeviceTab
-        DEVICE_SYSTEM_AVAILABLE = True
+        try:
+            from .device_tabs.device_tab import DeviceTab
+            DEVICE_SYSTEM_AVAILABLE = True
+        except Exception as e:
+            print(f"Device system UI not available: {e}")
+            DEVICE_SYSTEM_AVAILABLE = False
     else:
         DEVICE_SYSTEM_AVAILABLE = False
-except Exception:
-    DEVICE_SYSTEM_AVAILABLE = False
+except Exception as e:
+    # Config file doesn't exist or other error - try to load anyway
+    try:
+        from .device_tabs.device_tab import DeviceTab
+        DEVICE_SYSTEM_AVAILABLE = True
+    except Exception:
+        DEVICE_SYSTEM_AVAILABLE = False
 
 
 class MainWindow(QMainWindow):
@@ -80,6 +89,31 @@ class MainWindow(QMainWindow):
         # Create tab widget if device system available
         if DEVICE_SYSTEM_AVAILABLE:
             self.tab_widget = QTabWidget()
+            # Set larger font for main tabs
+            tab_font = self.tab_widget.font()
+            tab_font.setPointSize(11)
+            tab_font.setBold(True)
+            self.tab_widget.setFont(tab_font)
+            self.tab_widget.setStyleSheet("""
+                QTabWidget::pane {
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                }
+                QTabBar::tab {
+                    padding: 10px 20px;
+                    margin-right: 2px;
+                    font-size: 11pt;
+                    font-weight: bold;
+                    min-width: 100px;
+                }
+                QTabBar::tab:selected {
+                    background: #007bff;
+                    color: white;
+                }
+                QTabBar::tab:hover {
+                    background: #e3f2fd;
+                }
+            """)
             self.tab_widget.addTab(hardware_widget, "Hardware")
             self.tab_widget.setTabsClosable(True)
             self.tab_widget.tabCloseRequested.connect(self.on_tab_close_requested)
@@ -126,8 +160,9 @@ class MainWindow(QMainWindow):
         
         self.i2c_section = I2CSection()
         self.i2c_section.scan_requested.connect(self.on_i2c_scan)
-        if DEVICE_SYSTEM_AVAILABLE:
-            self.i2c_section.device_clicked.connect(self.on_device_clicked)
+        # Connect device_clicked signal (handler checks if system available)
+        self.i2c_section.device_clicked.connect(self.on_device_clicked)
+        print(f"DEBUG: Connected device_clicked signal, DEVICE_SYSTEM_AVAILABLE={DEVICE_SYSTEM_AVAILABLE}", file=sys.stderr)
         bus_row.addWidget(self.i2c_section)
         
         self.spi_section = SPISection()
@@ -243,31 +278,42 @@ class MainWindow(QMainWindow):
     
     def on_device_clicked(self, address: int, bus: int):
         """Handle device click - open device tab."""
+        print(f"DEBUG: on_device_clicked called with address=0x{address:02X}, bus={bus}", file=sys.stderr)
+        
         if not DEVICE_SYSTEM_AVAILABLE:
+            print("DEBUG: Device system not available", file=sys.stderr)
+            return
+        
+        # Check if tab widget exists
+        if not hasattr(self, 'tab_widget'):
+            print("DEBUG: No tab_widget found", file=sys.stderr)
             return
         
         # Check if tab already exists
         tab_key = (bus, address)
         if tab_key in self.device_tabs:
             # Tab exists - switch to it
-            if hasattr(self, 'tab_widget'):
-                for i in range(self.tab_widget.count()):
-                    if self.tab_widget.widget(i) == self.device_tabs[tab_key]:
-                        self.tab_widget.setCurrentIndex(i)
-                        break
+            print(f"DEBUG: Tab already exists, switching to it", file=sys.stderr)
+            for i in range(self.tab_widget.count()):
+                if self.tab_widget.widget(i) == self.device_tabs[tab_key]:
+                    self.tab_widget.setCurrentIndex(i)
+                    break
             return
         
         # Create new device tab
         try:
-            device_tab = DeviceTab(bus, address)
+            print(f"DEBUG: Creating new device tab", file=sys.stderr)
+            device_tab = DeviceTab(bus, address, hardware=self.mock_hardware)
             tab_title = f"Device: 0x{address:02X}"
             
-            if hasattr(self, 'tab_widget'):
-                index = self.tab_widget.addTab(device_tab, tab_title)
-                self.tab_widget.setCurrentIndex(index)
-                self.device_tabs[tab_key] = device_tab
+            index = self.tab_widget.addTab(device_tab, tab_title)
+            self.tab_widget.setCurrentIndex(index)
+            self.device_tabs[tab_key] = device_tab
+            print(f"DEBUG: Device tab created successfully at index {index}", file=sys.stderr)
         except Exception as e:
-            print(f"Error opening device tab: {e}", file=sys.stderr)
+            import traceback
+            print(f"ERROR: Error opening device tab: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
     
     def on_tab_close_requested(self, index: int):
         """Handle tab close request."""

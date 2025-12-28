@@ -27,6 +27,11 @@ class DevicePlugin(ABC):
         """
         self.bus = bus
         self.address = address
+        self.hardware = None  # Hardware manager (optional)
+    
+    def set_hardware(self, hardware):
+        """Set hardware manager (optional, for accessing shared hardware resources)."""
+        self.hardware = hardware
     
     @abstractmethod
     def detect(self) -> bool:
