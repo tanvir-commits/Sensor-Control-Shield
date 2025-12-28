@@ -116,95 +116,91 @@ class ADS1115Plugin(DevicePlugin):
     def _read_adc_channels(self, channel_labels):
         """Read all ADC channels and update display."""
         import sys
+        import smbus2
+        import time
         
-        # Try using adafruit library's AnalogIn (most reliable)
+        # Use smbus2 directly - keep trying different methods
         try:
-            import board
-            from adafruit_ads1x15.ads1115 import ADS1115
-            from adafruit_ads1x15.analog_in import AnalogIn
-            
-            i2c = board.I2C()
-            ads = ADS1115(i2c, address=self.address)
-            ads.gain = 1  # ±4.096V range
-            
-            # Create AnalogIn objects for each channel
-            channels = [
-                AnalogIn(ads, ADS1115.P0),  # AIN0
-                AnalogIn(ads, ADS1115.P1),  # AIN1
-                AnalogIn(ads, ADS1115.P2),  # AIN2
-                AnalogIn(ads, ADS1115.P3),  # AIN3
-            ]
-            
-            for ch in range(4):
-                try:
-                    voltage = channels[ch].voltage
-                    channel_labels[ch].setText(f"{voltage:.4f} V")
-                    channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #28a745; min-width: 200px;")
-                except Exception as e:
-                    channel_labels[ch].setText(f"Error")
-                    channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
-                    print(f"DEBUG: Error reading channel {ch}: {e}", file=sys.stderr)
-            
-            return
-            
-        except Exception as e:
-            print(f"DEBUG: adafruit library failed: {e}, trying smbus2", file=sys.stderr)
-            # Fallback to smbus2
-            pass
-        
-        # Fallback: Use smbus2 directly
-        try:
-            import smbus2
-            import time
-            
             bus = smbus2.SMBus(self.bus)
             
             # MUX values for single-ended channels (bits 14-12 of config register)
             # 0x4000 = AIN0 vs GND (channel 0)
-            # 0x5000 = AIN1 vs GND (channel 1)
+            # 0x5000 = AIN1 vs GND (channel 1)  
             # 0x6000 = AIN2 vs GND (channel 2)
             # 0x7000 = AIN3 vs GND (channel 3)
             mux_values = [0x4000, 0x5000, 0x6000, 0x7000]
             
             # Read all 4 channels
             for ch in range(4):
-                try:
-                    # Configure ADC for this channel and start conversion
-                    # Bit 15: OS = 1 (start single conversion)
-                    # Bits 14-12: MUX = channel selection
-                    # Bits 11-9: PGA = 010 (±4.096V range)
-                    # Bit 8: MODE = 1 (single-shot mode)
-                    # Bits 7-5: DR = 100 (128 SPS)
-                    config_val = 0x8000 | mux_values[ch] | 0x0100 | 0x0080 | 0x0010
-                    
-                    # Try to write config
+                voltage = 0.0
+                success = False
+                
+                # Configure ADC for this channel
+                # Bit 15: OS = 1 (start single conversion)
+                # Bits 14-12: MUX = channel selection  
+                # Bits 11-9: PGA = 010 (±4.096V range)
+                # Bit 8: MODE = 1 (single-shot mode)
+                # Bits 7-5: DR = 100 (128 SPS)
+                config_val = 0x8000 | mux_values[ch] | 0x0100 | 0x0080 | 0x0010
+                config_bytes = [(config_val >> 8) & 0xFF, config_val & 0xFF]
+                
+                # Try multiple write methods
+                for method in ['block', 'byte_high', 'byte_low', 'word']:
                     try:
-                        bus.write_i2c_block_data(self.address, 0x01, [
-                            (config_val >> 8) & 0xFF,
-                            config_val & 0xFF
-                        ])
+                        if method == 'block':
+                            bus.write_i2c_block_data(self.address, 0x01, config_bytes)
+                        elif method == 'byte_high':
+                            bus.write_byte_data(self.address, 0x01, config_bytes[0])
+                            time.sleep(0.01)
+                            bus.write_byte_data(self.address, 0x01, config_bytes[1])
+                        elif method == 'byte_low':
+                            # Try writing low byte to register 0x02 (some ADCs use this)
+                            bus.write_byte_data(self.address, 0x01, config_bytes[0])
+                            time.sleep(0.01)
+                            bus.write_byte_data(self.address, 0x02, config_bytes[1])
+                        elif method == 'word':
+                            bus.write_word_data(self.address, 0x01, config_val)
+                        
                         time.sleep(0.15)  # Wait for conversion
-                    except Exception as write_err:
-                        # If write fails, try reading anyway (might be in continuous mode)
-                        print(f"DEBUG: Write failed for channel {ch}: {write_err}", file=sys.stderr)
-                        time.sleep(0.05)
-                    
-                    # Read conversion result
-                    result_data = bus.read_i2c_block_data(self.address, 0x00, 2)
-                    raw_value = (result_data[0] << 8) | result_data[1]
-                    # Convert to signed 16-bit
-                    if raw_value & 0x8000:
-                        raw_value = raw_value - 65536
-                    # Convert to voltage (±4.096V range for ADS1115)
-                    voltage = (raw_value / 32767.0) * 4.096
-                    
+                        
+                        # Read conversion result
+                        result_data = bus.read_i2c_block_data(self.address, 0x00, 2)
+                        raw_value = (result_data[0] << 8) | result_data[1]
+                        # Convert to signed 16-bit
+                        if raw_value & 0x8000:
+                            raw_value = raw_value - 65536
+                        # Convert to voltage (±4.096V range for ADS1115)
+                        voltage = (raw_value / 32767.0) * 4.096
+                        
+                        # If we got a non-zero reading, it worked
+                        if abs(voltage) > 0.001 or method == 'word':  # Accept if non-zero or last method
+                            success = True
+                            print(f"DEBUG: Channel {ch} read via {method}: {voltage:.4f} V", file=sys.stderr)
+                            break
+                    except Exception as e:
+                        if method == 'word':  # Last method, show error
+                            print(f"DEBUG: Channel {ch} all methods failed, last error: {e}", file=sys.stderr)
+                        continue
+                
+                # If all writes failed, try reading anyway (ADC might be pre-configured)
+                if not success:
+                    try:
+                        result_data = bus.read_i2c_block_data(self.address, 0x00, 2)
+                        raw_value = (result_data[0] << 8) | result_data[1]
+                        if raw_value & 0x8000:
+                            raw_value = raw_value - 65536
+                        voltage = (raw_value / 32767.0) * 4.096
+                        print(f"DEBUG: Channel {ch} read-only: {voltage:.4f} V", file=sys.stderr)
+                    except:
+                        pass
+                
+                # Update display
+                if abs(voltage) > 0.001:
                     channel_labels[ch].setText(f"{voltage:.4f} V")
                     channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #28a745; min-width: 200px;")
-                    
-                except Exception as e:
-                    channel_labels[ch].setText(f"Error")
-                    channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
-                    print(f"DEBUG: Error reading channel {ch}: {e}", file=sys.stderr)
+                else:
+                    channel_labels[ch].setText(f"{voltage:.4f} V")
+                    channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #ffc107; min-width: 200px;")
             
             bus.close()
             
