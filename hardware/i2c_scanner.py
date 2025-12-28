@@ -29,14 +29,29 @@ class I2CScanner:
         # Then check other buses (Pi 5 may use 13/14)
         bus_priority = [1, 3, 0, 14, 13, 10, 11, 12, 15]
         
-        # First, try to find a bus with devices
+        # First, try to find a bus with devices AND that properly raises exceptions
         for bus_num in bus_priority:
             if os.path.exists(f"/dev/i2c-{bus_num}"):
-                # Quick check if this bus has devices
+                # Quick check if this bus is functional (raises exceptions for invalid addresses)
                 try:
                     import smbus2
                     test_bus = smbus2.SMBus(bus_num)
-                    # Quick scan of a few addresses
+                    # Test that bus properly raises exceptions for invalid addresses
+                    # If it doesn't raise exceptions, it's not a real functional I2C bus
+                    try:
+                        test_bus.write_quick(0x08)  # Address that likely has no device
+                        # If we get here, bus doesn't raise exceptions - skip it
+                        test_bus.close()
+                        continue
+                    except (IOError, OSError, TimeoutError):
+                        # Good - bus properly raises exceptions, now check for devices
+                        pass
+                    except:
+                        # Other exception - probably not a real bus
+                        test_bus.close()
+                        continue
+                    
+                    # Now check if this bus has any real devices
                     found_any = False
                     for addr in [0x48, 0x37, 0x3a, 0x50, 0x68]:  # Common addresses
                         try:
@@ -51,12 +66,29 @@ class I2CScanner:
                 except:
                     pass
         
-        # If no bus with devices found, return first available (prefer bus 1)
+        # If no bus with devices found, return first available functional bus (prefer bus 1)
         for bus_num in bus_priority:
             if os.path.exists(f"/dev/i2c-{bus_num}"):
-                return bus_num
+                # Verify bus is functional before returning it
+                try:
+                    import smbus2
+                    test_bus = smbus2.SMBus(bus_num)
+                    try:
+                        test_bus.write_quick(0x08)
+                        # Doesn't raise exception - skip this bus
+                        test_bus.close()
+                        continue
+                    except (IOError, OSError, TimeoutError):
+                        # Good - functional bus
+                        test_bus.close()
+                        return bus_num
+                    except:
+                        test_bus.close()
+                        continue
+                except:
+                    pass
         
-        # Fallback
+        # Fallback to bus 1 (even if we can't verify it)
         return 1
     
     def scan(self) -> List[int]:
