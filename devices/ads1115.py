@@ -53,8 +53,8 @@ class ADS1115Plugin(DevicePlugin):
         # Info
         info_label = QLabel(
             "Click the button below to read all 4 channels directly from the device.\n"
-            "Note: I2C requires external pull-up resistors (4.7kΩ recommended) on SDA and SCL lines. "
-            "Internal pull-ups are too weak (20-50kΩ) and cannot be enabled while I2C is active."
+            "If writes fail, check: write-protect (WP) pin/jumper, power connections (VCC/GND), "
+            "or the device may need to be replaced."
         )
         info_label.setWordWrap(True)
         info_label.setStyleSheet("padding: 15px; color: #666; font-size: 16pt;")
@@ -177,15 +177,15 @@ class ADS1115Plugin(DevicePlugin):
                 
                 # Update display
                 if not write_works:
-                    # Writes don't work - show hardware issue message
+                    # Writes don't work - show device-specific issue message
                     if ch == 0:
-                        channel_labels[ch].setText("Hardware Issue")
+                        channel_labels[ch].setText("Device Issue")
                     elif ch == 1:
-                        channel_labels[ch].setText("Check Pull-ups")
+                        channel_labels[ch].setText("Check WP Pin")
                     elif ch == 2:
-                        channel_labels[ch].setText("Check Wiring")
-                    else:
                         channel_labels[ch].setText("Check Power")
+                    else:
+                        channel_labels[ch].setText("Check Device")
                     channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
                 elif abs(voltage) > 0.001:
                     channel_labels[ch].setText(f"{voltage:.4f} V")
@@ -199,7 +199,7 @@ class ADS1115Plugin(DevicePlugin):
             # Show warning if writes don't work
             if not write_works:
                 print("DEBUG: ADC cannot be configured - I2C writes failing.", file=sys.stderr)
-                print("DEBUG: Possible causes: weak pull-ups (need 4.7kΩ on SDA/SCL), wiring issue, or power problem.", file=sys.stderr)
+                print("DEBUG: Device detected but writes fail. Check: write-protect (WP) pin, power supply, or device may be faulty.", file=sys.stderr)
             
         except Exception as e:
             # Error accessing I2C bus
