@@ -95,8 +95,9 @@ class I2CScanner:
                     devices.append(addr)
                     # Small delay between addresses to avoid bus congestion
                     time.sleep(0.001)
-                except (IOError, OSError):
+                except (IOError, OSError, TimeoutError):
                     # Device not present at this address - this is normal
+                    # TimeoutError is a subclass of OSError but explicitly catch it
                     pass
                 except Exception as e:
                     # Other errors (permission, bus error, etc.)
