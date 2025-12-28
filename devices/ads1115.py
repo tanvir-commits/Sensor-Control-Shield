@@ -107,10 +107,11 @@ class ADS1115Plugin(DevicePlugin):
         # Connect button to read function
         def read_channels():
             """Read all ADC channels and update display."""
-            # Try to use hardware manager's ADC first (more reliable)
-            if self.hardware and hasattr(self.hardware, 'adc') and self.hardware.adc and self.hardware.adc.adc:
+            # Use hardware manager's ADC (handles lazy initialization)
+            if self.hardware and hasattr(self.hardware, 'adc') and self.hardware.adc:
                 try:
-                    # Use existing ADC manager
+                    # Use ADC manager's read_all_channels() method
+                    # This handles lazy initialization automatically
                     readings = self.hardware.adc.read_all_channels()
                     for ch in range(4):
                         voltage = readings.get(ch, 0.0)
@@ -118,43 +119,17 @@ class ADS1115Plugin(DevicePlugin):
                         channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #28a745; min-width: 200px;")
                     return
                 except Exception as e:
-                    # Fall through to direct I2C method
-                    pass
-            
-            # Fallback: Try direct I2C access
-            try:
-                from adafruit_ads1x15.ads1115 import ADS1115
-                import board
-                
-                # Create I2C bus
-                i2c = board.I2C()
-                ads = ADS1115(i2c, address=self.address)
-                
-                # Read all channels
-                for ch in range(4):
-                    try:
-                        # Read voltage (ADS1115 returns 16-bit signed value)
-                        raw = ads.read(ch)
-                        voltage = raw * 4.096 / 32768.0  # Convert to volts
-                        channel_labels[ch].setText(f"{voltage:.4f} V")
-                        channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #28a745; min-width: 200px;")
-                    except Exception as e:
-                        channel_labels[ch].setText(f"Error")
+                    # Error reading from ADC manager
+                    error_msg = str(e)[:80]
+                    for ch in range(4):
+                        channel_labels[ch].setText(f"Error: {error_msg}")
                         channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
-                        
-            except ImportError:
-                # Library not available - show mock data
-                import random
-                for ch in range(4):
-                    mock_value = random.uniform(0, 3.3)
-                    channel_labels[ch].setText(f"{mock_value:.4f} V (mock)")
-                    channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #ffc107; min-width: 200px;")
-            except Exception as e:
-                # Error reading - show error
-                error_msg = str(e)[:50]
-                for ch in range(4):
-                    channel_labels[ch].setText(f"Error: {error_msg}")
-                    channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
+                    return
+            
+            # Fallback: Show error if hardware not available
+            for ch in range(4):
+                channel_labels[ch].setText("Hardware not available")
+                channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
         
         test_button.clicked.connect(read_channels)
         layout.addWidget(test_button)
