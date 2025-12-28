@@ -25,6 +25,9 @@ class DeviceTab(QWidget):
         
         self.setup_ui()
         self.load_suggestions()
+        
+        # Set minimum size to make window taller (after UI is set up)
+        self.setMinimumSize(1000, 1000)
     
     def setup_ui(self):
         """Set up the UI layout."""

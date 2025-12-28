@@ -39,11 +39,12 @@ class MainWindow(QMainWindow):
     def __init__(self, mock_hardware=None, parent=None):
         super().__init__(parent)
         self.mock_hardware = mock_hardware
+        self.hardware = mock_hardware  # Alias for clarity
         self.device_tabs = {}  # Track open device tabs: (bus, address) -> tab
         
         self.setWindowTitle("Device Panel")
         self.setMinimumSize(900, 850)
-        self.resize(1000, 900)
+        self.resize(1000, 1100)  # Start taller - increased height
         
         # Apply modern styling
         self.setStyleSheet("""
@@ -303,7 +304,7 @@ class MainWindow(QMainWindow):
         # Create new device tab
         try:
             print(f"DEBUG: Creating new device tab", file=sys.stderr)
-            device_tab = DeviceTab(bus, address, hardware=self.mock_hardware)
+            device_tab = DeviceTab(bus, address, hardware=self.hardware)
             tab_title = f"Device: 0x{address:02X}"
             
             index = self.tab_widget.addTab(device_tab, tab_title)
