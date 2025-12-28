@@ -95,15 +95,12 @@ class I2CScanner:
                     devices.append(addr)
                     # Small delay between addresses to avoid bus congestion
                     time.sleep(0.001)
-                except (IOError, OSError, TimeoutError):
+                except (IOError, OSError):
                     # Device not present at this address - this is normal
-                    # TimeoutError is a subclass of OSError but explicitly catch it
                     pass
                 except Exception as e:
-                    # Other unexpected errors - log but continue scanning
-                    # This should rarely happen, but if it does, we don't want to stop scanning
-                    import sys
-                    print(f"Unexpected I2C scan error at 0x{addr:02X}: {type(e).__name__}: {e}", file=sys.stderr)
+                    # Other errors (permission, bus error, etc.)
+                    # Continue scanning other addresses
                     pass
             
             bus.close()
