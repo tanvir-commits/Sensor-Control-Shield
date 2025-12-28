@@ -104,49 +104,53 @@ class ADS1115Plugin(DevicePlugin):
             }
         """)
         
-        # Connect button to read function
-        def read_channels():
-            """Read all ADC channels and update display."""
-            # Use hardware manager's ADC (handles lazy initialization)
-            if self.hardware and hasattr(self.hardware, 'adc') and self.hardware.adc:
-                try:
-                    # Use ADC manager's read_all_channels() method
-                    # This handles lazy initialization automatically
-                    readings = self.hardware.adc.read_all_channels()
-                    print(f"DEBUG: ADC readings: {readings}")  # Debug output
-                    for ch in range(4):
-                        voltage = readings.get(ch, 0.0)
-                        channel_labels[ch].setText(f"{voltage:.4f} V")
-                        # Use green for real readings, yellow for mock data
-                        if voltage in [1.234, 3.301, 0.012, 5.002]:  # Mock data values
-                            channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #ffc107; min-width: 200px;")
-                        else:
-                            channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #28a745; min-width: 200px;")
-                    return
-                except Exception as e:
-                    # Error reading from ADC manager
-                    import sys
-                    print(f"DEBUG: ADC read error: {e}", file=sys.stderr)
-                    import traceback
-                    traceback.print_exc(file=sys.stderr)
-                    error_msg = str(e)[:80]
-                    for ch in range(4):
-                        channel_labels[ch].setText(f"Error: {error_msg}")
-                        channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
-                    return
-            
-            # Fallback: Show error if hardware not available
-            import sys
-            print("DEBUG: Hardware not available", file=sys.stderr)
-            for ch in range(4):
-                channel_labels[ch].setText("Hardware not available")
-                channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
-        
-        test_button.clicked.connect(read_channels)
+        # Connect button - use method reference to ensure proper scope
+        test_button.clicked.connect(lambda checked=False: self._read_adc_channels(channel_labels))
         layout.addWidget(test_button)
         
         layout.addStretch()
         widget.setLayout(layout)
         
         return widget
+    
+    def _read_adc_channels(self, channel_labels):
+        """Read all ADC channels and update display."""
+        import sys
+        print("DEBUG: Button clicked!", file=sys.stderr)
+        print(f"DEBUG: self.hardware = {self.hardware}", file=sys.stderr)
+        
+        # Use hardware manager's ADC (handles lazy initialization)
+        if self.hardware and hasattr(self.hardware, 'adc') and self.hardware.adc:
+            print("DEBUG: Hardware ADC found", file=sys.stderr)
+            try:
+                # Use ADC manager's read_all_channels() method
+                # This handles lazy initialization automatically
+                readings = self.hardware.adc.read_all_channels()
+                print(f"DEBUG: ADC readings: {readings}", file=sys.stderr)
+                for ch in range(4):
+                    voltage = readings.get(ch, 0.0)
+                    print(f"DEBUG: Channel {ch}: {voltage} V", file=sys.stderr)
+                    channel_labels[ch].setText(f"{voltage:.4f} V")
+                    # Use green for real readings, yellow for mock data
+                    if voltage in [1.234, 3.301, 0.012, 5.002]:  # Mock data values
+                        channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #ffc107; min-width: 200px;")
+                    else:
+                        channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #28a745; min-width: 200px;")
+                return
+            except Exception as e:
+                # Error reading from ADC manager
+                print(f"DEBUG: ADC read error: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc(file=sys.stderr)
+                error_msg = str(e)[:80]
+                for ch in range(4):
+                    channel_labels[ch].setText(f"Error: {error_msg}")
+                    channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
+                return
+        
+        # Fallback: Show error if hardware not available
+        print("DEBUG: Hardware not available", file=sys.stderr)
+        for ch in range(4):
+            channel_labels[ch].setText("Hardware not available")
+            channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
 
