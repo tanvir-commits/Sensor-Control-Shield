@@ -188,10 +188,16 @@ if ! grep -q "dtparam=spi=on" "$MOUNT_DIR/boot/config.txt"; then
     echo "dtparam=spi=on" >> "$MOUNT_DIR/boot/config.txt"
 fi
 
+# Enable I2C3 on GPIO4/GPIO5 (for J16 I2C_PORT_C connector)
+if ! grep -q "dtoverlay=i2c3" "$MOUNT_DIR/boot/config.txt"; then
+    echo "# Device Panel - Enable I2C3 (second I2C bus)" >> "$MOUNT_DIR/boot/config.txt"
+    echo "dtoverlay=i2c3,pins_4_5" >> "$MOUNT_DIR/boot/config.txt"
+fi
+
 # Enable SSH
 touch "$MOUNT_DIR/boot/ssh"
 
-log_info "✓ Boot configuration updated (I2C, SPI, SSH enabled)"
+log_info "✓ Boot configuration updated (I2C, I2C3, SPI, SSH enabled)"
 
 # Step 5: Setup chroot environment
 log_info "Step 5: Setting up chroot environment..."

@@ -25,8 +25,9 @@ class I2CScanner:
             Bus number with devices, or first available bus, or 1 as fallback
         """
         # Priority: Bus 1 first (GPIO2/3 - standard I2C1 on Pi)
+        # Then bus 3 (I2C3 on GPIO4/5 - if enabled via dtoverlay)
         # Then check other buses (Pi 5 may use 13/14)
-        bus_priority = [1, 0, 14, 13, 10, 11, 12, 15]
+        bus_priority = [1, 3, 0, 14, 13, 10, 11, 12, 15]
         
         # First, try to find a bus with devices
         for bus_num in bus_priority:

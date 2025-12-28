@@ -5,6 +5,10 @@
 dtparam=i2c_arm=on
 dtparam=i2c_arm_baudrate=100000
 
+# Enable I2C3 on GPIO4/GPIO5 (for J16 I2C_PORT_C connector)
+# This creates a second I2C bus separate from I2C1
+dtoverlay=i2c3,pins_4_5
+
 # Enable SPI
 dtparam=spi=on
 
