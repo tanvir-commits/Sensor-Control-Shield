@@ -1,13 +1,15 @@
 """GPIO manager for LEDs and buttons."""
 
 from hardware.platform import is_raspberry_pi
+from PySide6.QtCore import Signal, QObject
 from config.pins import LED1, LED2, LED3, LED4, BTN1, BTN2
 
 
-class GPIOManager:
+class GPIOManager(QObject):
     """Simple GPIO manager - real on Pi, mock on PC."""
     
     def __init__(self):
+        super().__init__()  # Initialize QObject
         self.is_pi = is_raspberry_pi()
         self.led_states = {1: False, 2: False, 3: False, 4: False}
         self.button_states = {1: False, 2: False}
@@ -27,9 +29,10 @@ class GPIOManager:
                 3: LED(LED3),
                 4: LED(LED4)
             }
+            # Use minimal bounce_time for faster response (default is 0.01s = 10ms)
             self.buttons = {
-                1: Button(BTN1, pull_up=True),
-                2: Button(BTN2, pull_up=True)
+                1: Button(BTN1, pull_up=True, bounce_time=None),
+                2: Button(BTN2, pull_up=True, bounce_time=None)
             }
             # Set up button callbacks
             self.buttons[1].when_pressed = lambda: self._button_callback(1, True)
@@ -62,11 +65,9 @@ class GPIOManager:
         return self.led_states.get(led_id, False)
     
     def get_button(self, button_id: int) -> bool:
-        """Get button state.
-        
-        Returns True when button is pressed, False when released.
-        With pull_up=True, gpiozero.Button.is_pressed is True when GPIO is LOW (pressed).
-        """
+        """Get button state - uses callback-updated state only."""
+        # Always use callback state, never read hardware directly
+                # Read hardware directly for fastest response
         if self.is_pi and self.buttons and button_id in self.buttons:
             return self.buttons[button_id].is_pressed
         return self.button_states.get(button_id, False)
