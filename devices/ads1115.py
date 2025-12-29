@@ -158,7 +158,8 @@ class ADS1115Plugin(DevicePlugin):
                     
                     try:
                         bus.write_i2c_block_data(self.address, 0x01, config_bytes)
-                        time.sleep(0.15)  # Wait for conversion
+                        # Wait for conversion to complete (128 SPS = ~8ms, add margin)
+                        time.sleep(0.02)  # 20ms should be enough for 128 SPS
                     except Exception as e:
                         print(f"DEBUG: Channel {ch} config write failed: {e}", file=sys.stderr)
                 
