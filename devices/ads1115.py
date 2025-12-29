@@ -156,11 +156,117 @@ class ADS1115Plugin(DevicePlugin):
                     channel_labels[ch].setText(f"Error: {error_msg}")
                     channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
         
-        test_button.clicked.connect(read_channels)
+        # Connect button - use method reference to ensure proper scope
+        test_button.clicked.connect(lambda checked=False: self._read_adc_channels(channel_labels))
         layout.addWidget(test_button)
         
         layout.addStretch()
         widget.setLayout(layout)
         
         return widget
+    
+    def _read_adc_channels(self, channel_labels):
+        """Read all ADC channels and update display."""
+        import sys
+        import smbus2
+        import time
+        
+        # Use smbus2 directly
+        try:
+            bus = smbus2.SMBus(self.bus)
+            
+            # Check if we can write to config register
+            write_works = False
+            try:
+                # Try a simple write to see if writes work at all
+                bus.write_i2c_block_data(self.address, 0x01, [0x85, 0x83])
+                write_works = True
+                time.sleep(0.15)
+            except Exception as e:
+                print(f"DEBUG: ADC write failed (hardware issue): {e}", file=sys.stderr)
+                write_works = False
+            
+            # MUX values for single-ended channels (bits 14-12 of config register)
+            # 0x4000 = AIN0 vs GND (channel 0)
+            # 0x5000 = AIN1 vs GND (channel 1)  
+            # 0x6000 = AIN2 vs GND (channel 2)
+            # 0x7000 = AIN3 vs GND (channel 3)
+            mux_values = [0x4000, 0x5000, 0x6000, 0x7000]
+            
+            # Read all 4 channels
+            for ch in range(4):
+                voltage = 0.0
+                
+                if write_works:
+                    # Configure ADC for this channel
+                    # Bit 15: OS = 1 (start single conversion)
+                    # Bits 14-12: MUX = channel selection  
+                    # Bits 11-9: PGA = 001 (±4.096V range) = 0x0200
+                    # Bit 8: MODE = 1 (single-shot mode)
+                    # Bits 7-5: DR = 100 (128 SPS)
+                    config_val = 0x8000 | mux_values[ch] | 0x0200 | 0x0100 | 0x0080 | 0x0010
+                    config_bytes = [(config_val >> 8) & 0xFF, config_val & 0xFF]
+                    
+                    try:
+                        bus.write_i2c_block_data(self.address, 0x01, config_bytes)
+                        # Poll OS bit to wait for conversion to complete
+                        # OS bit (bit 15) clears when conversion is done
+                        max_wait = 0.1  # 100ms max wait
+                        start_time = time.time()
+                        while time.time() - start_time < max_wait:
+                            time.sleep(0.01)  # Check every 10ms
+                            config_data = bus.read_i2c_block_data(self.address, 0x01, 2)
+                            config_status = (config_data[0] << 8) | config_data[1]
+                            if (config_status & 0x8000) == 0:  # OS bit cleared = conversion done
+                                break
+                    except Exception as e:
+                        print(f"DEBUG: Channel {ch} config write failed: {e}", file=sys.stderr)
+                
+                # Read conversion result
+                try:
+                    result_data = bus.read_i2c_block_data(self.address, 0x00, 2)
+                    raw_value = (result_data[0] << 8) | result_data[1]
+                    # Convert to signed 16-bit
+                    if raw_value & 0x8000:
+                        raw_value = raw_value - 65536
+                    # Convert to voltage (±4.096V range for ADS1115)
+                    voltage = (raw_value / 32767.0) * 4.096
+                except Exception as e:
+                    print(f"DEBUG: Channel {ch} read failed: {e}", file=sys.stderr)
+                    voltage = 0.0
+                
+                # Update display
+                if not write_works:
+                    # Writes don't work - show device-specific issue message
+                    if ch == 0:
+                        channel_labels[ch].setText("Device Issue")
+                    elif ch == 1:
+                        channel_labels[ch].setText("Check WP Pin")
+                    elif ch == 2:
+                        channel_labels[ch].setText("Check Power")
+                    else:
+                        channel_labels[ch].setText("Check Device")
+                    channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
+                elif abs(voltage) > 0.001:
+                    channel_labels[ch].setText(f"{voltage:.4f} V")
+                    channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #28a745; min-width: 200px;")
+                else:
+                    channel_labels[ch].setText(f"{voltage:.4f} V")
+                    channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #ffc107; min-width: 200px;")
+            
+            bus.close()
+            
+            # Show warning if writes don't work
+            if not write_works:
+                print("DEBUG: ADC cannot be configured - I2C writes failing.", file=sys.stderr)
+                print("DEBUG: Device detected but writes fail. Check: write-protect (WP) pin, power supply, or device may be faulty.", file=sys.stderr)
+            
+        except Exception as e:
+            # Error accessing I2C bus
+            error_msg = str(e)[:80]
+            for ch in range(4):
+                channel_labels[ch].setText(f"I2C Error")
+                channel_labels[ch].setStyleSheet("font-size: 18pt; font-weight: bold; color: #dc3545; min-width: 200px;")
+            print(f"DEBUG: I2C error: {e}", file=sys.stderr)
+>>>>>>> 356e599 (Fix ADC: Add missing PGA bits (0x0200) for ±4.096V range)
 
