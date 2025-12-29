@@ -184,10 +184,15 @@ class MainWindow(QMainWindow):
             if not self.mock_hardware:
                 return
             
-            # Update analog readings
-            if hasattr(self.mock_hardware, 'adc'):
-                readings = self.mock_hardware.adc.read_all_channels()
-                self.analog_section.update_readings(readings)
+            # Update analog readings (skip if slow to avoid blocking buttons/LEDs)
+            # ADC can take 1+ seconds, so we skip it in the main update loop
+            # TODO: Move ADC to separate slower timer if needed
+            # if hasattr(self.mock_hardware, 'adc'):
+            #     try:
+            #         readings = self.mock_hardware.adc.read_all_channels()
+            #         self.analog_section.update_readings(readings)
+            #     except:
+            #         pass
             
             # Update button states
             if hasattr(self.mock_hardware, 'gpio'):
