@@ -150,10 +150,10 @@ class ADS1115Plugin(DevicePlugin):
                     # Configure ADC for this channel
                     # Bit 15: OS = 1 (start single conversion)
                     # Bits 14-12: MUX = channel selection  
-                    # Bits 11-9: PGA = 010 (±4.096V range)
+                    # Bits 11-9: PGA = 001 (±4.096V range) = 0x0200
                     # Bit 8: MODE = 1 (single-shot mode)
                     # Bits 7-5: DR = 100 (128 SPS)
-                    config_val = 0x8000 | mux_values[ch] | 0x0100 | 0x0080 | 0x0010
+                    config_val = 0x8000 | mux_values[ch] | 0x0200 | 0x0100 | 0x0080 | 0x0010
                     config_bytes = [(config_val >> 8) & 0xFF, config_val & 0xFF]
                     
                     try:
