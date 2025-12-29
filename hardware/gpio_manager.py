@@ -27,9 +27,10 @@ class GPIOManager:
                 3: LED(LED3),
                 4: LED(LED4)
             }
+            # Use minimal bounce_time for snappier response (default is 0.01s)
             self.buttons = {
-                1: Button(BTN1, pull_up=True),
-                2: Button(BTN2, pull_up=True)
+                1: Button(BTN1, pull_up=True, bounce_time=0.001),
+                2: Button(BTN2, pull_up=True, bounce_time=0.001)
             }
             # Set up button callbacks
             self.buttons[1].when_pressed = lambda: self._button_callback(1, True)

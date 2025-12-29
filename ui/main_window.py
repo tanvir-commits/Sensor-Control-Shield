@@ -72,7 +72,7 @@ class MainWindow(QMainWindow):
         # Setup UI
         self.setup_ui()
         
-        # Setup update timer (10Hz = 100ms)
+        # Setup update timer (50Hz = 20ms for snappier button response)
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.update_all)
         
@@ -80,7 +80,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(100, self.update_all)  # Delay first update
         
         # Start timer after a short delay to ensure window is ready
-        QTimer.singleShot(200, lambda: self.update_timer.start(100))
+        QTimer.singleShot(200, lambda: self.update_timer.start(20))
     
     def setup_ui(self):
         """Set up the main UI layout."""
