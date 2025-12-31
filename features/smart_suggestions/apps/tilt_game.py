@@ -210,11 +210,18 @@ class TiltGameApp(BaseApp):
             accel_x, accel_y, accel_z = self._read_mpu6050_accel()
             
             # Calculate tilt from accelerometer
-            # Remove gravity component - when flat, Z should be ~1g, X and Y should be ~0
-            # Tilt is the deviation from flat position
-            # Invert Y for natural tilt direction (tilt right = ball moves right)
+            # MPU6050 returns values in "g" (gravity units)
+            # When flat: X≈0, Y≈0, Z≈1g
+            # When tilted: X and Y show tilt angle
+            # Apply sensitivity and invert Y for natural feel
             tilt_x = accel_x * self.sensitivity
             tilt_y = -accel_y * self.sensitivity  # Invert for natural feel
+            
+            # Add small dead zone to prevent drift when flat
+            if abs(tilt_x) < 0.05:
+                tilt_x = 0.0
+            if abs(tilt_y) < 0.05:
+                tilt_y = 0.0
             
             # Update velocity based on tilt
             self.velocity_x += tilt_x
