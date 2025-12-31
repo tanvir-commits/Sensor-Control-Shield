@@ -10,6 +10,7 @@ Group=pi
 Environment="DISPLAY=:0"
 Environment="XAUTHORITY=/home/pi/.Xauthority"
 Environment="PYTHONPATH=/opt/device-panel"
+Environment="QT_QPA_PLATFORM=xcb"
 WorkingDirectory=/opt/device-panel
 ExecStart=/usr/bin/python3 -u /opt/device-panel/device_panel.py
 Restart=on-failure

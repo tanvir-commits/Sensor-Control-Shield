@@ -295,7 +295,7 @@ sed -i "s/Group=pi/Group=$USERNAME/g" /etc/systemd/system/device-panel.service
 sed -i "s|/home/pi|/home/$USERNAME|g" /etc/systemd/system/device-panel.service
 CHROOT_EOF
 
-# Create desktop launcher for all users
+# Create desktop launcher for all users (menu entry)
 mkdir -p "$MOUNT_DIR/root/usr/share/applications"
 cat > "$MOUNT_DIR/root/usr/share/applications/device-panel.desktop" << 'DESKTOP'
 [Desktop Entry]
@@ -309,11 +309,28 @@ Categories=Utility;System;
 StartupNotify=true
 DESKTOP
 
-# Create autostart for default user (user ID 1000)
+# Create desktop icon and autostart for default user (user ID 1000)
 chroot "$MOUNT_DIR/root" /bin/bash << 'CHROOT_EOF'
 USERNAME=$(id -nu 1000 2>/dev/null || echo "pi")
 USER_HOME="/home/$USERNAME"
 if [ -d "$USER_HOME" ]; then
+    # Create desktop icon (actual desktop file)
+    mkdir -p "$USER_HOME/Desktop"
+    cat > "$USER_HOME/Desktop/device-panel.desktop" << 'DESKTOP_ICON'
+[Desktop Entry]
+Type=Application
+Name=Device Panel
+Comment=Hardware Control and Monitoring GUI
+Exec=/usr/bin/python3 /opt/device-panel/device_panel.py
+Icon=application-x-executable
+Terminal=false
+Categories=Utility;System;
+StartupNotify=true
+DESKTOP_ICON
+    chmod +x "$USER_HOME/Desktop/device-panel.desktop"
+    chown 1000:1000 "$USER_HOME/Desktop/device-panel.desktop" 2>/dev/null || true
+    
+    # Create autostart entry
     mkdir -p "$USER_HOME/.config/autostart"
     cat > "$USER_HOME/.config/autostart/device-panel.desktop" << 'AUTOSTART'
 [Desktop Entry]
@@ -327,7 +344,9 @@ Categories=Utility;System;
 StartupNotify=true
 X-GNOME-Autostart-enabled=true
 AUTOSTART
+    chmod +x "$USER_HOME/.config/autostart/device-panel.desktop"
     chown -R 1000:1000 "$USER_HOME/.config" 2>/dev/null || true
+    chown -R 1000:1000 "$USER_HOME/Desktop" 2>/dev/null || true
 fi
 CHROOT_EOF
 
