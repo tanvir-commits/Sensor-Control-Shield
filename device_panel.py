@@ -80,8 +80,7 @@ def launch_app_cli(app_name: str):
         
         print(f"📱 Detected {len(devices)} devices:")
         for device in devices:
-            device_name = getattr(device, 'name', f"Device 0x{device.address:02X}")
-            print(f"   - {device_name} (0x{device.address:02X}) - {device.category}")
+            print(f"   - {device.device_name} (0x{device.address:02X}) - {device.category}")
         
         # Map app name to class
         app_map = {
