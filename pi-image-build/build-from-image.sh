@@ -233,9 +233,11 @@ pip3 install --break-system-packages \
     pyside6 \
     gpiozero \
     adafruit-circuitpython-ads1x15 \
+    adafruit-circuitpython-ssd1306 \
     smbus2 \
     spidev \
-    pyserial
+    pyserial \
+    Pillow
 
 echo "Dependencies installed successfully"
 CHROOT_EOF
