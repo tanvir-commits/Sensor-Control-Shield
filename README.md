@@ -1,4 +1,6 @@
-# Raspberry Pi Sensor Control Shield
+# Device Panel - Raspberry Pi Sensor Control Shield
+
+> **📋 [PROJECT OVERVIEW - See All Branches, Agents, and Status →](PROJECT_OVERVIEW.md)**
 
 ## Overview
 
@@ -17,6 +19,30 @@ This shield provides a clean, professional interface for connecting sensors, LED
 - Current-limited outputs (LEDs protected)
 - Shared ground plane across all connectors
 - Surface-mount connectors on bottom side
+
+---
+
+## Quick Links
+
+- **[📊 PROJECT OVERVIEW](PROJECT_OVERVIEW.md)** - All branches, agents, RPi assignments, and status
+- **[🚀 AGENT QUICK START](AGENT_QUICK_START.md)** - Get started quickly as a new agent
+- **[📝 DEVELOPMENT GUIDELINES](DEVELOPMENT.md)** - Overall development rules and structure
+- **[🌿 BRANCH STRATEGY](BRANCH_STRATEGY.md)** - Branch workflow and merge process
+- **[🤝 AGENT COMMUNICATION](AGENT_COMMUNICATION.md)** - How agents coordinate
+- **[🧪 TESTING WORKFLOW](TESTING_WORKFLOW.md)** - Ubuntu first, then RPi testing
+- **[📌 RPi ASSIGNMENTS](RPI_ASSIGNMENTS.md)** - RPi connection details and deployment
+
+### Current Branches
+
+```
+prod (production)
+  └── dev (development)
+      ├── feature/power-profiler      [Active - Agent: power-profiler]
+      ├── feature/test-sequences      [Not started]
+      └── feature/smart-suggestions   [Active - Agent: smart-suggestions]
+```
+
+See [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) for complete branch details, RPi assignments, and status.
 
 ---
 
