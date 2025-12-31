@@ -24,7 +24,7 @@ class TiltGameApp(BaseApp):
         self.velocity_x = 0.0
         self.velocity_y = 0.0
         self.friction = 0.95  # Friction coefficient
-        self.sensitivity = 0.5  # Tilt sensitivity
+        self.sensitivity = 2.0  # Tilt sensitivity (increased for better response)
     
     def _initialize(self) -> bool:
         """Initialize MPU6050 and LCD."""
@@ -209,8 +209,10 @@ class TiltGameApp(BaseApp):
             # Read accelerometer
             accel_x, accel_y, accel_z = self._read_mpu6050_accel()
             
-            # Calculate tilt (ignore Z, use X and Y)
-            # Invert Y for natural tilt direction
+            # Calculate tilt from accelerometer
+            # Remove gravity component - when flat, Z should be ~1g, X and Y should be ~0
+            # Tilt is the deviation from flat position
+            # Invert Y for natural tilt direction (tilt right = ball moves right)
             tilt_x = accel_x * self.sensitivity
             tilt_y = -accel_y * self.sensitivity  # Invert for natural feel
             
