@@ -125,6 +125,37 @@ class MainWindow(QMainWindow):
         else:
             # No device system - use single widget (backward compatible)
             self.setCentralWidget(hardware_widget)
+        
+        # Add menu bar with smart suggestions (if enabled)
+        self.setup_menu_bar()
+    
+    def setup_menu_bar(self):
+        """Set up menu bar with optional features."""
+        try:
+            from config import feature_flags
+            if feature_flags.ENABLE_SMART_SUGGESTIONS:
+                try:
+                    from features.smart_suggestions.ui.suggestions_dialog import SuggestionsDialog
+                    menubar = self.menuBar()
+                    tools_menu = menubar.addMenu("Tools")
+                    action = tools_menu.addAction("Show App Suggestions...")
+                    action.triggered.connect(self.show_suggestions)
+                except Exception as e:
+                    print(f"Smart suggestions not available: {e}", file=sys.stderr)
+        except Exception as e:
+            # Feature flags not available or other error - skip menu
+            pass
+    
+    def show_suggestions(self):
+        """Show app suggestions dialog."""
+        try:
+            from features.smart_suggestions.ui.suggestions_dialog import SuggestionsDialog
+            dialog = SuggestionsDialog(self.hardware, self)
+            dialog.exec()
+        except Exception as e:
+            print(f"Error showing suggestions: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
     
     def create_hardware_widget(self):
         """Create the hardware control widget (existing functionality)."""
