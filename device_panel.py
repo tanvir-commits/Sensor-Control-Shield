@@ -150,7 +150,7 @@ def list_suggestions_cli():
         
         print(f"\n📱 Detected {len(devices)} devices:")
         for device in devices:
-            print(f"   - {device.name} (0x{device.address:02X}) - {device.category}")
+            print(f"   - {device.device_name} (0x{device.address:02X}) - {device.category}")
         
         print(f"\n💡 Found {len(suggestions)} suggestions:")
         for i, suggestion in enumerate(suggestions, 1):
