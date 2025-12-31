@@ -282,17 +282,20 @@ chroot "$MOUNT_DIR/root" chown -R 1000:1000 /opt/device-panel 2>/dev/null || tru
 # Step 8: Configure services and desktop
 log_info "Step 8: Configuring services and desktop..."
 
-# Copy systemd service (will use user ID 1000, not hardcoded "pi")
-cp config/device-panel.service "$MOUNT_DIR/root/etc/systemd/system/"
+# Copy systemd service (optional - for manual use, but we'll rely on autostart)
+# Desktop autostart is more reliable for GUI apps (only runs when user is logged in)
+cp config/device-panel.service "$MOUNT_DIR/root/etc/systemd/system/" 2>/dev/null || true
 
-# Update service file to use user ID 1000 instead of "pi"
+# Update service file to use user ID 1000 instead of "pi" (if service file exists)
 chroot "$MOUNT_DIR/root" /bin/bash << 'CHROOT_EOF'
 # Get username for user ID 1000
 USERNAME=$(id -nu 1000 2>/dev/null || echo "pi")
-# Update service file
-sed -i "s/User=pi/User=$USERNAME/g" /etc/systemd/system/device-panel.service
-sed -i "s/Group=pi/Group=$USERNAME/g" /etc/systemd/system/device-panel.service
-sed -i "s|/home/pi|/home/$USERNAME|g" /etc/systemd/system/device-panel.service
+# Update service file if it exists
+if [ -f /etc/systemd/system/device-panel.service ]; then
+    sed -i "s/User=pi/User=$USERNAME/g" /etc/systemd/system/device-panel.service
+    sed -i "s/Group=pi/Group=$USERNAME/g" /etc/systemd/system/device-panel.service
+    sed -i "s|/home/pi|/home/$USERNAME|g" /etc/systemd/system/device-panel.service
+fi
 CHROOT_EOF
 
 # Create desktop launcher for all users (menu entry)
