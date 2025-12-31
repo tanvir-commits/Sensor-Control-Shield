@@ -137,6 +137,24 @@ class MainWindow(QMainWindow):
                 try:
                     from features.smart_suggestions.ui.suggestions_dialog import SuggestionsDialog
                     menubar = self.menuBar()
+                    # Style menu bar with larger font
+                    menubar.setStyleSheet("""
+                        QMenuBar {
+                            font-size: 14pt;
+                            font-weight: bold;
+                            padding: 5px;
+                        }
+                        QMenuBar::item {
+                            padding: 8px 15px;
+                        }
+                        QMenu {
+                            font-size: 14pt;
+                            font-weight: bold;
+                        }
+                        QMenu::item {
+                            padding: 8px 25px;
+                        }
+                    """)
                     tools_menu = menubar.addMenu("Tools")
                     action = tools_menu.addAction("Show App Suggestions...")
                     action.triggered.connect(self.show_suggestions)

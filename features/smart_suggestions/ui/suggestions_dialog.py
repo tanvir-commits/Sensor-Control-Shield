@@ -226,6 +226,9 @@ class SuggestionsDialog(QDialog):
             if app_class_name == "TiltGameApp":
                 from ..apps.tilt_game import TiltGameApp
                 app_class = TiltGameApp
+            elif app_class_name == "LevelApp":
+                from ..apps.level_app import LevelApp
+                app_class = LevelApp
             else:
                 print(f"Unknown app class: {app_class_name}")
                 return

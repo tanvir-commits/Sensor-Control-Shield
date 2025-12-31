@@ -28,6 +28,14 @@ SUGGESTION_RULES = [
         "priority": 10,
     },
     {
+        "required": ["IMU", "DISPLAY"],
+        "optional": [],
+        "app_class": "LevelApp",
+        "app_name": "Digital Level",
+        "description": "Digital bubble level showing tilt angles",
+        "priority": 9,
+    },
+    {
         "required": ["TEMP_SENSOR", "DISPLAY"],
         "optional": [],
         "app_class": "ThermometerApp",

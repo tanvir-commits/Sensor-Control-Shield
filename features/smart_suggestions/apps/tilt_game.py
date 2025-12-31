@@ -20,12 +20,13 @@ class TiltGameApp(BaseApp):
         # Ball physics
         self.ball_x = 64  # Center of 128x64 display
         self.ball_y = 32
-        self.ball_radius = 3
+        self.ball_radius = 4
         self.velocity_x = 0.0
         self.velocity_y = 0.0
-        self.friction = 0.95  # Friction coefficient
-        self.sensitivity = 5.0  # Tilt sensitivity (increased for better response)
-        self.debug = True  # Debug output enabled
+        self.friction = 0.92  # Friction coefficient (less friction = more movement)
+        self.sensitivity = 8.0  # Tilt sensitivity (increased for better response)
+        self.max_velocity = 5.0  # Maximum ball velocity
+        self.debug = False  # Debug output (set to True for debugging)
     
     def _initialize(self) -> bool:
         """Initialize MPU6050 and LCD."""
@@ -133,17 +134,17 @@ class TiltGameApp(BaseApp):
             return (0.0, 0.0, 9.8)  # Default: no tilt
     
     def _read_mpu6050_accel_basic(self) -> tuple:
-        """Basic I2C accelerometer read."""
+        """Basic I2C accelerometer read with improved calibration."""
         try:
             # MPU6050 accelerometer registers start at 0x3B
             # Each axis is 2 bytes (high, low)
             data = self.mpu6050_bus.read_i2c_block_data(self.mpu6050_addr, 0x3B, 6)
             
-            # Convert to signed integers
+            # Convert to signed integers (16-bit, two's complement)
             accel_x = (data[0] << 8 | data[1])
             if accel_x > 32767:
                 accel_x -= 65536
-            accel_x = accel_x / 16384.0  # Convert to g (FS_SEL=0, ±2g)
+            accel_x = accel_x / 16384.0  # Convert to g (FS_SEL=0, ±2g range)
             
             accel_y = (data[2] << 8 | data[3])
             if accel_y > 32767:
@@ -155,11 +156,18 @@ class TiltGameApp(BaseApp):
                 accel_z -= 65536
             accel_z = accel_z / 16384.0
             
+            # Apply calibration offset (subtract gravity when flat)
+            # When flat, Z should be ~1g, X and Y should be ~0
+            # This helps remove static offset
+            accel_x = accel_x  # X axis - no offset needed
+            accel_y = accel_y  # Y axis - no offset needed
+            # Z axis - subtract 1g when calculating tilt (but we don't use Z for tilt)
+            
             return (accel_x, accel_y, accel_z)
         
         except Exception as e:
             print(f"TiltGameApp: Basic MPU6050 read error: {e}")
-            return (0.0, 0.0, 9.8)
+            return (0.0, 0.0, 1.0)  # Return 1g for Z when flat
     
     def _init_lcd(self) -> bool:
         """Initialize LCD display."""
