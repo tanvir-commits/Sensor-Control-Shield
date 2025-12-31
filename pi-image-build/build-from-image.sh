@@ -259,18 +259,19 @@ if [ -f "$DEVICE_PANEL_SOURCE/device_panel.py" ]; then
     cp -r "$DEVICE_PANEL_SOURCE"/hardware "$MOUNT_DIR/root/opt/device-panel/" 2>/dev/null || true
     cp -r "$DEVICE_PANEL_SOURCE"/config "$MOUNT_DIR/root/opt/device-panel/" 2>/dev/null || true
     cp -r "$DEVICE_PANEL_SOURCE"/mock "$MOUNT_DIR/root/opt/device-panel/" 2>/dev/null || true
+    cp -r "$DEVICE_PANEL_SOURCE"/devices "$MOUNT_DIR/root/opt/device-panel/" 2>/dev/null || true
     # Remove pi-image-build from the copy if it exists
     rm -rf "$MOUNT_DIR/root/opt/device-panel/pi-image-build" 2>/dev/null || true
-    log_info "✓ Device Panel copied from local source"
+    log_info "✓ Device Panel copied from local source (v0.1)"
 else
-    # Clone from GitHub in chroot
+    # Clone from GitHub in chroot (using v0.1 tag)
     chroot "$MOUNT_DIR/root" /bin/bash << 'CHROOT_EOF'
 mkdir -p /opt/device-panel
 cd /opt/device-panel
-git clone https://github.com/tanvir-commits/Sensor-Control-Shield.git .
+git clone --branch v0.1 --depth 1 https://github.com/tanvir-commits/Sensor-Control-Shield.git .
 rm -rf pi-image-build
 CHROOT_EOF
-    log_info "✓ Device Panel cloned from GitHub"
+    log_info "✓ Device Panel cloned from GitHub (v0.1 tag)"
 fi
 
 # Set permissions (use user ID 1000 which is typically the first user)
