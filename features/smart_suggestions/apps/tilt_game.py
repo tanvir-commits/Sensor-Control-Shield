@@ -234,10 +234,10 @@ class TiltGameApp(BaseApp):
             elif self.debug and not hasattr(self, '_debug_count'):
                 self._debug_count = 0
             
-            # Add small dead zone to prevent drift when flat
-            if abs(tilt_x) < 0.15:
+            # Add dead zone to prevent drift when flat (smaller threshold)
+            if abs(tilt_x) < 0.2:
                 tilt_x = 0.0
-            if abs(tilt_y) < 0.15:
+            if abs(tilt_y) < 0.2:
                 tilt_y = 0.0
             
             # Debug: Print tilt values occasionally
@@ -248,9 +248,15 @@ class TiltGameApp(BaseApp):
                 if self._frame_count % 30 == 0:  # Every 30 frames (~1 second)
                     print(f"TiltGame: accel=({accel_x:.3f}, {accel_y:.3f}) tilt=({tilt_x:.3f}, {tilt_y:.3f}) vel=({self.velocity_x:.3f}, {self.velocity_y:.3f}) pos=({self.ball_x:.1f}, {self.ball_y:.1f})")
             
-            # Update velocity based on tilt
-            self.velocity_x += tilt_x
-            self.velocity_y += tilt_y
+            # Update velocity based on tilt (accumulate over time with scaling)
+            self.velocity_x += tilt_x * 0.1  # Scale down for smoother movement
+            self.velocity_y += tilt_y * 0.1
+            
+            # Limit maximum velocity
+            if abs(self.velocity_x) > self.max_velocity:
+                self.velocity_x = self.max_velocity if self.velocity_x > 0 else -self.max_velocity
+            if abs(self.velocity_y) > self.max_velocity:
+                self.velocity_y = self.max_velocity if self.velocity_y > 0 else -self.max_velocity
             
             # Apply friction
             self.velocity_x *= self.friction
