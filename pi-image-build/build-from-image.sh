@@ -367,27 +367,54 @@ log_info "✓ Image unmounted"
 log_info "Step 10: Creating final image..."
 mv "$WORK_IMAGE" "$OUTPUT_IMAGE"
 
-# Compress
-log_info "Compressing image (this may take a while)..."
-xz -9 "$OUTPUT_IMAGE"
+# Optional compression (set COMPRESS_IMAGE=1 to enable)
+COMPRESS_IMAGE=${COMPRESS_IMAGE:-0}
 
-# Create checksum
-sha256sum "${OUTPUT_IMAGE}.xz" > "${OUTPUT_IMAGE}.xz.sha256"
-
-log_info "✓ Final image created: ${OUTPUT_IMAGE}.xz"
-log_info "✓ Checksum: ${OUTPUT_IMAGE}.xz.sha256"
-
-echo
-log_info "=========================================="
-log_info "Build Complete!"
-log_info "=========================================="
-echo
-log_info "Image: ${OUTPUT_IMAGE}.xz"
-log_info "Size: $(du -h ${OUTPUT_IMAGE}.xz | cut -f1)"
-log_info "Checksum: $(cat ${OUTPUT_IMAGE}.xz.sha256)"
-echo
-log_info "To flash this image:"
-log_info "  xzcat ${OUTPUT_IMAGE}.xz | sudo dd of=/dev/sdX bs=4M status=progress"
-log_info "  Or use Raspberry Pi Imager with the .xz file"
-echo
+if [ "$COMPRESS_IMAGE" = "1" ]; then
+    # Compress
+    log_info "Compressing image (this may take a while)..."
+    xz -9 "$OUTPUT_IMAGE"
+    
+    # Create checksum
+    sha256sum "${OUTPUT_IMAGE}.xz" > "${OUTPUT_IMAGE}.xz.sha256"
+    
+    log_info "✓ Final image created: ${OUTPUT_IMAGE}.xz"
+    log_info "✓ Checksum: ${OUTPUT_IMAGE}.xz.sha256"
+    
+    echo
+    log_info "=========================================="
+    log_info "Build Complete!"
+    log_info "=========================================="
+    echo
+    log_info "Image: ${OUTPUT_IMAGE}.xz"
+    log_info "Size: $(du -h ${OUTPUT_IMAGE}.xz | cut -f1)"
+    log_info "Checksum: $(cat ${OUTPUT_IMAGE}.xz.sha256)"
+    echo
+    log_info "To flash this image:"
+    log_info "  xzcat ${OUTPUT_IMAGE}.xz | sudo dd of=/dev/sdX bs=4M status=progress"
+    log_info "  Or use Raspberry Pi Imager with the .xz file"
+    echo
+else
+    # Create checksum for uncompressed image
+    sha256sum "$OUTPUT_IMAGE" > "${OUTPUT_IMAGE}.sha256"
+    
+    log_info "✓ Final image created: ${OUTPUT_IMAGE}"
+    log_info "✓ Checksum: ${OUTPUT_IMAGE}.sha256"
+    
+    echo
+    log_info "=========================================="
+    log_info "Build Complete!"
+    log_info "=========================================="
+    echo
+    log_info "Image: ${OUTPUT_IMAGE}"
+    log_info "Size: $(du -h ${OUTPUT_IMAGE} | cut -f1)"
+    log_info "Checksum: $(cat ${OUTPUT_IMAGE}.sha256)"
+    echo
+    log_info "To flash this image:"
+    log_info "  sudo dd if=${OUTPUT_IMAGE} of=/dev/sdX bs=4M status=progress"
+    log_info "  Or use Raspberry Pi Imager with the .img file"
+    echo
+    log_info "Note: To compress in future builds, set COMPRESS_IMAGE=1"
+    echo
+fi
 
