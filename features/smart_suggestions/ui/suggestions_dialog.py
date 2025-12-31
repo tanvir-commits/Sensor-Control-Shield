@@ -211,6 +211,7 @@ class SuggestionsDialog(QDialog):
             button_layout.addWidget(stop_button)
         else:
             launch_button = QPushButton("Launch")
+            launch_button.setObjectName(f"launch_button_{suggestion.app_class}")  # Set object name for automation
             launch_button.clicked.connect(lambda: self.launch_app(suggestion.app_class, devices))
             button_layout.addWidget(launch_button)
         
