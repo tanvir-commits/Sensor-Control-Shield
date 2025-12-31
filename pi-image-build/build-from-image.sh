@@ -358,8 +358,9 @@ systemctl enable ssh
 # Enable VNC
 systemctl enable vncserver-x11-serviced.service
 
-# Enable Device Panel
-systemctl enable device-panel.service
+# Don't enable systemd service - rely on desktop autostart instead
+# Desktop autostart is more reliable for GUI apps (only runs when user is logged in)
+# systemctl enable device-panel.service
 
 # Add user to groups (assuming user ID 1000)
 if id 1000 &>/dev/null; then
@@ -367,7 +368,7 @@ if id 1000 &>/dev/null; then
 fi
 CHROOT_EOF
 
-log_info "✓ Services and desktop configured (SSH, VNC, Device Panel enabled)"
+log_info "✓ Services and desktop configured (SSH, VNC enabled, Device Panel via autostart)"
 
 # Step 9: Unmount
 log_info "Step 9: Unmounting image..."
