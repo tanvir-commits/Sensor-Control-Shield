@@ -24,8 +24,8 @@ class TiltGameApp(BaseApp):
         self.velocity_x = 0.0
         self.velocity_y = 0.0
         self.friction = 0.95  # Friction coefficient
-        self.sensitivity = 3.0  # Tilt sensitivity (increased for better response)
-        self.debug = False  # Set to True for debug output
+        self.sensitivity = 5.0  # Tilt sensitivity (increased for better response)
+        self.debug = True  # Debug output enabled
     
     def _initialize(self) -> bool:
         """Initialize MPU6050 and LCD."""
@@ -227,10 +227,18 @@ class TiltGameApp(BaseApp):
                 self._debug_count = 0
             
             # Add small dead zone to prevent drift when flat
-            if abs(tilt_x) < 0.1:
+            if abs(tilt_x) < 0.15:
                 tilt_x = 0.0
-            if abs(tilt_y) < 0.1:
+            if abs(tilt_y) < 0.15:
                 tilt_y = 0.0
+            
+            # Debug: Print tilt values occasionally
+            if self.debug and not hasattr(self, '_frame_count'):
+                self._frame_count = 0
+            if self.debug:
+                self._frame_count += 1
+                if self._frame_count % 30 == 0:  # Every 30 frames (~1 second)
+                    print(f"TiltGame: accel=({accel_x:.3f}, {accel_y:.3f}) tilt=({tilt_x:.3f}, {tilt_y:.3f}) vel=({self.velocity_x:.3f}, {self.velocity_y:.3f}) pos=({self.ball_x:.1f}, {self.ball_y:.1f})")
             
             # Update velocity based on tilt
             self.velocity_x += tilt_x
