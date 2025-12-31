@@ -71,6 +71,10 @@ def launch_app_cli(app_name: str):
         
         print(f"🚀 Launching {app_name} programmatically...")
         
+        # Create QApplication for Qt timers to work
+        app = QApplication(sys.argv)
+        app.setQuitOnLastWindowClosed(False)
+        
         # Initialize hardware
         hardware = Hardware()
         
@@ -108,18 +112,27 @@ def launch_app_cli(app_name: str):
             return 1
         
         # Create and start app
-        app = app_class()
-        if app.start(hardware, app_devices):
+        game_app = app_class()
+        if game_app.start(hardware, app_devices):
             print(f"✅ {app_name} launched successfully!")
             print(f"   App is running. Press Ctrl+C to stop.")
             
             try:
-                import time
-                while True:
-                    time.sleep(1)
+                # Run Qt event loop
+                import signal
+                def signal_handler(sig, frame):
+                    print("\n🛑 Stopping app...")
+                    game_app.stop()
+                    app.quit()
+                    print("✅ App stopped.")
+                    sys.exit(0)
+                
+                signal.signal(signal.SIGINT, signal_handler)
+                app.exec()
             except KeyboardInterrupt:
                 print("\n🛑 Stopping app...")
-                app.stop()
+                game_app.stop()
+                app.quit()
                 print("✅ App stopped.")
                 return 0
         else:
