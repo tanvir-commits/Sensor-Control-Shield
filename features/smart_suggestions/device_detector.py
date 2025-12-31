@@ -33,7 +33,7 @@ class DeviceDetector:
         self.registry = get_registry()
     
     def scan_all_devices(self, hardware=None) -> List[DeviceInfo]:
-        """Scan all I2C buses and return categorized device list.
+        """Scan I2C bus and return categorized device list.
         
         Args:
             hardware: Hardware manager (optional, uses I2CScanner if not provided)
@@ -44,15 +44,21 @@ class DeviceDetector:
         devices = []
         
         try:
-            # Scan all available I2C buses
-            if hardware and hasattr(hardware, 'i2c'):
-                # Use hardware's I2C scanner if available
-                all_buses = I2CScanner.scan_all_buses()
+            # Scan only the active I2C bus (not all buses)
+            if hardware and hasattr(hardware, 'i2c') and hasattr(hardware.i2c, 'bus'):
+                # Use hardware's I2C bus
+                bus_num = hardware.i2c.bus
+                scanner = I2CScanner(bus=bus_num)
+                addresses = scanner.scan()
+                all_buses = {bus_num: addresses}
             else:
-                # Use I2CScanner directly
-                all_buses = I2CScanner.scan_all_buses()
+                # Fallback: Use I2CScanner to find the active bus
+                scanner = I2CScanner()
+                bus_num = scanner.bus
+                addresses = scanner.scan()
+                all_buses = {bus_num: addresses}
             
-            # Process each bus
+            # Process the bus
             for bus_num, addresses in all_buses.items():
                 for address in addresses:
                     # Skip HAT EEPROM (internal Pi device)

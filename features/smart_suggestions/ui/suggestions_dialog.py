@@ -39,34 +39,74 @@ class SuggestionsDialog(QDialog):
         # Title
         title = QLabel("App Suggestions")
         title_font = QFont()
-        title_font.setPointSize(18)
+        title_font.setPointSize(16)
         title_font.setBold(True)
         title.setFont(title_font)
+        title.setStyleSheet("font-size: 16pt; font-weight: bold; padding: 10px;")
         layout.addWidget(title)
         
         # Detected devices section
         devices_group = QGroupBox("Detected Devices")
+        devices_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 16pt;
+                font-weight: bold;
+                padding-top: 20px;
+                margin-top: 10px;
+            }
+        """)
         devices_layout = QVBoxLayout()
         self.devices_list = QListWidget()
         self.devices_list.setMaximumHeight(150)
+        # Match font to other tabs
+        font = self.devices_list.font()
+        font.setPointSize(14)
+        font.setBold(True)
+        self.devices_list.setFont(font)
         devices_layout.addWidget(self.devices_list)
         devices_group.setLayout(devices_layout)
         layout.addWidget(devices_group)
         
         # Suggestions section
         suggestions_group = QGroupBox("Suggested Apps")
+        suggestions_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 16pt;
+                font-weight: bold;
+                padding-top: 20px;
+                margin-top: 10px;
+            }
+        """)
         suggestions_layout = QVBoxLayout()
         self.suggestions_list = QListWidget()
         self.suggestions_list.setMinimumHeight(300)
+        # Match font to other tabs
+        font = self.suggestions_list.font()
+        font.setPointSize(14)
+        font.setBold(True)
+        self.suggestions_list.setFont(font)
         suggestions_layout.addWidget(self.suggestions_list)
         suggestions_group.setLayout(suggestions_layout)
         layout.addWidget(suggestions_group)
         
         # Running apps section
         running_group = QGroupBox("Running Apps")
+        running_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 16pt;
+                font-weight: bold;
+                padding-top: 20px;
+                margin-top: 10px;
+            }
+        """)
         running_layout = QVBoxLayout()
         self.running_list = QListWidget()
         self.running_list.setMaximumHeight(100)
+        # Match font to other tabs
+        font = self.running_list.font()
+        font.setPointSize(14)
+        font.setBold(True)
+        self.running_list.setFont(font)
         running_layout.addWidget(self.running_list)
         running_group.setLayout(running_layout)
         layout.addWidget(running_group)
@@ -144,19 +184,21 @@ class SuggestionsDialog(QDialog):
         # App name and description
         name_label = QLabel(f"<b>{suggestion.app_name}</b>")
         name_font = QFont()
-        name_font.setPointSize(12)
+        name_font.setPointSize(14)
         name_font.setBold(True)
         name_label.setFont(name_font)
+        name_label.setStyleSheet("font-size: 14pt; font-weight: bold;")
         layout.addWidget(name_label)
         
         desc_label = QLabel(suggestion.description)
         desc_label.setWordWrap(True)
+        desc_label.setStyleSheet("font-size: 12pt;")
         layout.addWidget(desc_label)
         
         # Required devices
         req_text = "Requires: " + ", ".join(suggestion.required_devices)
         req_label = QLabel(req_text)
-        req_label.setStyleSheet("color: #666; font-size: 10pt;")
+        req_label.setStyleSheet("color: #666; font-size: 12pt;")
         layout.addWidget(req_label)
         
         # Launch button
