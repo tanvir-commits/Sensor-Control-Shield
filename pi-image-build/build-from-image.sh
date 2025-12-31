@@ -226,7 +226,7 @@ set -e
 apt-get update
 
 # Install system packages (including base64 which may be needed by pip)
-apt-get install -y python3-pip python3-venv i2c-tools git coreutils
+apt-get install -y python3-pip python3-venv i2c-tools git coreutils realvnc-vnc-server
 
 # Install Python packages
 pip3 install --break-system-packages \
@@ -336,6 +336,9 @@ chroot "$MOUNT_DIR/root" /bin/bash << 'CHROOT_EOF'
 # Enable SSH
 systemctl enable ssh
 
+# Enable VNC
+systemctl enable vncserver-x11-serviced.service
+
 # Enable Device Panel
 systemctl enable device-panel.service
 
@@ -345,7 +348,7 @@ if id 1000 &>/dev/null; then
 fi
 CHROOT_EOF
 
-log_info "✓ Services and desktop configured"
+log_info "✓ Services and desktop configured (SSH, VNC, Device Panel enabled)"
 
 # Step 9: Unmount
 log_info "Step 9: Unmounting image..."
