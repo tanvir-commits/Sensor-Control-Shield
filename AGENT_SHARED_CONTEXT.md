@@ -151,9 +151,16 @@ Example format:
 
 ### RPi Testing
 
-- **RPi 1**: Assigned to power-profiler (when ready)
-- **RPi 2**: Assigned to test-sequences (when ready)
-- **Future**: Additional RPis for other features or dev integration
+- **RPi 1** (192.168.101): Assigned to `feature/smart-suggestions`
+  - Username: `a`
+  - Password: `1`
+  - SSH: `ssh a@192.168.101`
+  
+- **RPi 2** (192.168.102): Assigned to `feature/power-profiler`
+  - Username: `pi` (verify if different)
+  - SSH: `ssh pi@192.168.102`
+  
+- **Future**: Additional RPis for `feature/test-sequences` or `dev` integration
 
 ---
 

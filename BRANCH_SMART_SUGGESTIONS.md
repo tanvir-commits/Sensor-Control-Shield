@@ -135,6 +135,15 @@ Feature is complete when:
 - Suggestions appear correctly
 - Apps launch and work
 
+### RPi Testing
+
+- **Assigned RPi**: RPi 1 (192.168.101)
+- **Username**: `a`
+- **Password**: `1`
+- **Deploy**: `./scripts/deploy-to-pi.sh -b feature/smart-suggestions -h 192.168.101 -u a`
+- **Setup**: `./scripts/setup-pi-for-branch.sh -h 192.168.101 -b feature/smart-suggestions -u a`
+- See `RPI_ASSIGNMENTS.md` for details
+
 ## Implementation Details
 
 ### Suggestion Rules

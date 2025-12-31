@@ -143,6 +143,14 @@ Feature is complete when:
 - Sequence builder is intuitive
 - Results are clear
 
+### RPi Testing
+
+- **Assigned RPi**: RPi 2 (192.168.102)
+- **Username**: `pi` (verify if different)
+- **Deploy**: `./scripts/deploy-to-pi.sh -b feature/power-profiler -h 192.168.102 -u pi`
+- **Setup**: `./scripts/setup-pi-for-branch.sh -h 192.168.102 -b feature/power-profiler -u pi`
+- See `RPI_ASSIGNMENTS.md` for details
+
 ## Implementation Details
 
 ### Hardware Support

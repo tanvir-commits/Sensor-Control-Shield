@@ -101,9 +101,16 @@ For Ubuntu testing, hardware is mocked:
 
 ### RPi Assignment
 
-- **RPi 1**: `feature/power-profiler` testing
-- **RPi 2**: `feature/test-sequences` testing
-- **Future**: Additional RPis for other features or `dev` integration
+- **RPi 1** (192.168.101): `feature/smart-suggestions` testing
+  - Username: `a`
+  - Password: `1`
+  - Purpose: Automatic app suggestion feature testing
+  
+- **RPi 2** (192.168.102): `feature/power-profiler` testing
+  - Username: `pi` (default, verify if different)
+  - Purpose: Power profiler feature testing
+  
+- **Future**: Additional RPis for `feature/test-sequences` or `dev` integration
 
 ### What to Test on RPi
 
