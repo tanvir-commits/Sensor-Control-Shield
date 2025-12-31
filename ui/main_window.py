@@ -36,13 +36,16 @@ except Exception as e:
 class MainWindow(QMainWindow):
     """Main application window."""
     
-    def __init__(self, mock_hardware=None, parent=None):
+    def __init__(self, mock_hardware=None, branch=None, parent=None):
         super().__init__(parent)
         self.mock_hardware = mock_hardware
         self.hardware = mock_hardware  # Alias for clarity
         self.device_tabs = {}  # Track open device tabs: (bus, address) -> tab
+        self.branch = branch or "unknown"  # Current git branch
         
-        self.setWindowTitle("Device Panel")
+        # Set window title with branch name
+        title = f"Device Panel [{self.branch}]"
+        self.setWindowTitle(title)
         self.setMinimumSize(900, 850)
         self.resize(1000, 1100)  # Start taller - increased height
         
@@ -130,8 +133,8 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(20)
         main_layout.setContentsMargins(20, 15, 20, 20)
         
-        # Status bar at top
-        self.status_bar = StatusBar()
+        # Status bar at top (pass branch for display)
+        self.status_bar = StatusBar(branch=self.branch)
         main_layout.addWidget(self.status_bar)
         
         # Content area

@@ -8,9 +8,10 @@ import socket
 class StatusBar(QWidget):
     """Status bar showing system health indicators."""
     
-    def __init__(self, parent=None):
+    def __init__(self, branch=None, parent=None):
         super().__init__(parent)
         self.status_labels = {}
+        self.branch = branch or "unknown"
         self.setup_ui()
     
     def setup_ui(self):
@@ -33,6 +34,26 @@ class StatusBar(QWidget):
         
         # Spacer
         layout.addStretch()
+        
+        # Branch indicator (color-coded by branch type)
+        branch_color = self.get_branch_color(self.branch)
+        branch_label = QLabel(f"Branch: {self.branch}")
+        branch_font = branch_label.font()
+        branch_font.setPointSize(10)
+        branch_font.setBold(True)
+        branch_label.setFont(branch_font)
+        branch_label.setStyleSheet(f"""
+            QLabel {{
+                color: {branch_color};
+                padding: 6px 12px;
+                background-color: #e3f2fd;
+                border: 1px solid #90caf9;
+                border-radius: 4px;
+                font-weight: bold;
+            }}
+        """)
+        layout.addWidget(branch_label)
+        self.status_labels["Branch"] = branch_label
         
         # IP Address
         ip_label = QLabel(f"IP: {self.get_ip_address()}")
@@ -115,6 +136,25 @@ class StatusBar(QWidget):
                     font-weight: bold;
                 }}
             """)
+    
+    def get_branch_color(self, branch: str) -> str:
+        """Get color for branch indicator based on branch type.
+        
+        Args:
+            branch: Branch name
+            
+        Returns:
+            str: Color hex code
+        """
+        branch_lower = branch.lower()
+        if branch_lower == "prod" or branch_lower.startswith("prod"):
+            return "#d32f2f"  # Red for production
+        elif branch_lower == "dev" or branch_lower.startswith("dev"):
+            return "#f57c00"  # Orange for development
+        elif branch_lower.startswith("feature/"):
+            return "#1976d2"  # Blue for features
+        else:
+            return "#616161"  # Gray for unknown/other
     
     def get_ip_address(self) -> str:
         """Get the primary IP address of the system."""

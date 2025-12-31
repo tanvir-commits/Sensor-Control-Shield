@@ -55,12 +55,39 @@ ENABLE_POWER_PROFILER = True
 ENABLE_TEST_SEQUENCES = True  # Required by power profiler
 ```
 
-### 4. Branch Status Files
+### 4. Shared Context File (NEW - Recommended)
 
-**Method**: Create `BRANCH_STATUS.md` in each branch for current status.
+**Method**: Update `AGENT_SHARED_CONTEXT.md` for real-time coordination.
 
 **Content**:
-- Current work status
+- Current status of all branches
+- Blockers and dependencies
+- Recent discoveries and gotchas
+- API changes affecting others
+- Quick messages between agents
+
+**Example**:
+```markdown
+### feature/power-profiler
+
+**Status**: In progress
+**Current Work**: Implementing INA260 support
+**Blockers**: Need sequence engine API from test-sequences
+**Recent Discoveries**: INA260 needs 10ms delay after config write
+```
+
+**Best Practices**:
+- Update at start/end of work session
+- Update when status changes
+- Share discoveries that help others
+- Keep updates concise
+
+### 5. Branch Status Files
+
+**Method**: Create `BRANCH_STATUS.md` in each branch for detailed status.
+
+**Content**:
+- Detailed current work status
 - Blockers or dependencies
 - Recent changes
 - Next steps
@@ -81,7 +108,40 @@ ENABLE_TEST_SEQUENCES = True  # Required by power profiler
 - Integrated with GPIO manager
 ```
 
-### 5. GitHub Issues (if available)
+### 6. Decision Log
+
+**Method**: Read `DECISION_LOG.md` to understand why decisions were made.
+
+**Content**:
+- Architectural decisions and reasoning
+- Technology choices and trade-offs
+- Design patterns and their rationale
+
+**Use Cases**:
+- Understanding existing code structure
+- Making informed changes
+- Avoiding re-debating settled decisions
+
+**Example**:
+```markdown
+## Hardware Abstraction Layer
+
+**Decision**: Separate hardware managers from UI
+**Reasoning**: Separation of concerns, testability, reusability
+**Trade-offs**: More files, but better organization
+```
+
+### 7. Quick Start Guide
+
+**Method**: New agents should read `AGENT_QUICK_START.md` first.
+
+**Content**:
+- First steps for new agents
+- What to read in what order
+- Common tasks and workflows
+- Getting unstuck
+
+### 8. GitHub Issues (if available)
 
 **Method**: Use GitHub issues for tracking and communication.
 
@@ -91,7 +151,7 @@ ENABLE_TEST_SEQUENCES = True  # Required by power profiler
 - Coordinate breaking changes
 - Track dependencies
 
-### 6. Code Comments
+### 9. Code Comments
 
 **Method**: Add comments in code referencing other branches.
 
@@ -103,7 +163,7 @@ def execute_sequence(self, sequence):
     pass
 ```
 
-### 7. Shared Test Files
+### 10. Shared Test Files
 
 **Method**: Use `tests/shared/` for cross-feature tests.
 
@@ -213,8 +273,28 @@ Agents communicate through:
 1. **Git commits** - Reference other branches
 2. **Documentation** - Update `.md` files
 3. **Shared config** - Use `config/` for coordination
-4. **Status files** - Track current work
-5. **Code comments** - Reference dependencies
+4. **Shared context** - Real-time coordination via `AGENT_SHARED_CONTEXT.md` ⭐ NEW
+5. **Decision log** - Understand reasoning via `DECISION_LOG.md` ⭐ NEW
+6. **Quick start** - Onboard quickly via `AGENT_QUICK_START.md` ⭐ NEW
+7. **Status files** - Track current work
+8. **Code comments** - Reference dependencies
 
-The key is: **Document everything, communicate clearly, coordinate via `dev` branch**.
+The key is: **Document everything, communicate clearly, coordinate via `dev` branch, update shared context regularly**.
+
+## Recommended Daily Workflow
+
+1. **Start of day**:
+   - Read `AGENT_SHARED_CONTEXT.md` for current status
+   - Check your branch status
+   - Sync with `dev` branch
+
+2. **During work**:
+   - Update `AGENT_SHARED_CONTEXT.md` when status changes
+   - Commit with clear messages referencing other branches
+   - Document discoveries in shared context
+
+3. **End of day**:
+   - Update `AGENT_SHARED_CONTEXT.md` with your status
+   - Push your branch
+   - Note any blockers or dependencies
 

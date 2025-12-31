@@ -6,6 +6,9 @@ on a Raspberry Pi expansion board.
 """
 
 import sys
+import os
+import subprocess
+from pathlib import Path
 from PySide6.QtWidgets import QApplication
 
 from ui.main_window import MainWindow
@@ -28,18 +31,52 @@ class Hardware:
         self.power = PowerManager()
 
 
+def get_git_branch():
+    """Get current git branch name.
+    
+    Returns:
+        str: Branch name (e.g., 'main', 'dev', 'feature/power-profiler')
+             Returns 'unknown' if git is not available or not in a git repo.
+    """
+    try:
+        # Get the directory containing this script
+        script_dir = Path(__file__).parent.absolute()
+        
+        # Try to get branch name
+        result = subprocess.run(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            cwd=script_dir,
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        
+        if result.returncode == 0:
+            branch = result.stdout.strip()
+            return branch if branch else 'unknown'
+        else:
+            return 'unknown'
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        # Git not available, not in git repo, or other error
+        return 'unknown'
+
+
 def main():
     """Main application entry point."""
     try:
+        # Get current git branch for display
+        branch = get_git_branch()
+        
         # Create Qt application
         app = QApplication(sys.argv)
-        app.setApplicationName("Device Panel")
+        app_name = f"Device Panel [{branch}]"
+        app.setApplicationName(app_name)
         
         # Create hardware managers
         hardware = Hardware()
         
-        # Create and show main window
-        window = MainWindow(mock_hardware=hardware)
+        # Create and show main window (pass branch for display)
+        window = MainWindow(mock_hardware=hardware, branch=branch)
         window.show()
         
         # Run application
