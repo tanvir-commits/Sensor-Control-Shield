@@ -210,8 +210,9 @@ class SuggestionsDialog(QDialog):
             stop_action = QAction("Stop", self)
             stop_action.setObjectName(f"stop_{suggestion.app_class}_action")
             stop_action.triggered.connect(lambda: self.stop_app(suggestion.app_class))
-            stop_button = QPushButton()
-            stop_button.setDefaultAction(stop_action)
+            stop_button = QPushButton("Stop")
+            stop_button.setObjectName(f"stop_button_{suggestion.app_class}")
+            stop_button.clicked.connect(stop_action.trigger)  # Connect button to action
             button_layout.addWidget(stop_button)
         else:
             # Create QAction for programmatic triggering
@@ -220,10 +221,15 @@ class SuggestionsDialog(QDialog):
             launch_action.triggered.connect(lambda: self.launch_app(suggestion.app_class, devices))
             self.launch_actions[suggestion.app_class] = launch_action  # Store for automation
             
-            # Use action in button
-            launch_button = QPushButton()
-            launch_button.setDefaultAction(launch_action)
-            launch_button.setObjectName(f"launch_button_{suggestion.app_class}")  # Also set on button for xdotool
+            # Use action in button - PySide6 compatible way
+            launch_button = QPushButton("Launch")
+            launch_button.setObjectName(f"launch_button_{suggestion.app_class}")
+            launch_button.setAccessibleName(f"Launch {suggestion.app_name}")  # For accessibility tools
+            launch_button.setAccessibleDescription(f"Launch the {suggestion.app_name} application")
+            launch_button.clicked.connect(launch_action.trigger)  # Connect button to action
+            # Make it the default button so Enter key triggers it - SIMPLE automation!
+            if suggestion.app_class == "TiltGameApp":  # Make first suggestion default
+                launch_button.setDefault(True)
             button_layout.addWidget(launch_button)
         
         layout.addLayout(button_layout)
@@ -232,8 +238,20 @@ class SuggestionsDialog(QDialog):
         return widget
     
     def launch_app(self, app_class_name: str, devices: List[DeviceInfo]):
-        """Launch an app."""
+        """Launch an app. Stops any currently running app first."""
         try:
+            # Stop any currently running apps first
+            if self.running_apps:
+                print(f"Stopping {len(self.running_apps)} running app(s) before launching {app_class_name}...")
+                for running_app_class, running_app in list(self.running_apps.items()):
+                    try:
+                        running_app.stop()
+                        print(f"Stopped app: {running_app_class}")
+                    except Exception as e:
+                        print(f"Error stopping app {running_app_class}: {e}", file=sys.stderr)
+                self.running_apps.clear()
+                self.update_running_apps()
+            
             # Import app class
             if app_class_name == "TiltGameApp":
                 from ..apps.tilt_game import TiltGameApp
