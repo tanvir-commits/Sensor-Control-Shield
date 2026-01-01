@@ -7,7 +7,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PySide6.QtWidgets import QApplication
 from features.smart_suggestions.ui.suggestions_dialog import SuggestionsDialog
-from hardware.hardware import Hardware
+
+# Import Hardware class (same way device_panel.py does it)
+import sys
+import os
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
+
+from device_panel import Hardware
 
 def launch_app_via_dialog_api(app_class_name="TiltGameApp"):
     """Launch app by directly calling dialog methods - no clicking needed!"""
