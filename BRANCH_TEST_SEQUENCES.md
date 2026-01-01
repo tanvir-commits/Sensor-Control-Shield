@@ -1,8 +1,12 @@
-# Test Sequences Feature Branch
+# QA Test Sequences Feature Branch
 
 ## Project Overview
 
-The Test Sequences feature provides a general-purpose sequence engine for defining and executing test sequences. It can be used by the Power Profiler and other features for automated testing. The engine supports GPIO, ADC, UART, and custom actions with timing and conditional logic.
+The **QA Test Sequences** feature provides a **device-agnostic QA test execution layer** for embedded devices. It allows users to run repeatable QA tests on MCUs (DUTs) by orchestrating test sequences from the Raspberry Pi via UART and GPIO, while the MCU runs a minimal QA Agent that executes numbered tasks and enters defined sleep modes.
+
+**Key Design Principle**: Intelligence lives on the Pi, firmware remains simple.
+
+See `QA_Test_Sequences_Design.md` for complete design details.
 
 ## Branch Relationships
 
@@ -15,38 +19,42 @@ The Test Sequences feature provides a general-purpose sequence engine for defini
 
 ### Core Functionality
 
-1. **Sequence Definition**
-   - Define sequence steps (GPIO, ADC, UART, delay, conditional)
-   - Sequence metadata (name, description, version)
+1. **DUT Profile Setup**
+   - Configure UART port and baud rate
+   - Configure GPIO for WAKE and RESET
+   - Document what each task (TASK 1-10) does
+   - No MCU model selection required (MCU-agnostic)
+
+2. **Sequence Builder**
+   - Define sequences using high-level actions:
+     - Trigger Task N (1-10)
+     - Send UART command
+     - Enter sleep mode (Active, Light Sleep, Deep Sleep, Shutdown)
+     - Wait (ms/seconds/minutes)
+     - Loop/repeat
+     - Pass/fail conditions
    - Save/load sequences (JSON/YAML format)
-   - Sequence validation
 
-2. **Sequence Execution**
-   - Execute sequences with timing
-   - Handle errors and timeouts
-   - Log execution results
-   - Support parallel sequences (if needed)
+3. **Sequence Execution**
+   - Execute sequences one command at a time
+   - Each command requires OK/ERR response
+   - Wake, sleep, and reset events logged
+   - Failures stop or flag the sequence
+   - Timing data collection
 
-3. **Step Types**
-   - GPIO actions (set, toggle, read)
-   - ADC actions (read channel, sample rate)
-   - UART actions (send, receive, wait for response)
-   - Delay actions (fixed, variable, conditional)
-   - Measurement actions (trigger measurement)
-   - Conditional actions (if/then/else)
-
-4. **Integration API**
-   - Simple API for other features to use
-   - Callback support for custom actions
-   - Event system for sequence events
-   - Result reporting
+4. **Results & Reporting**
+   - Pass/Fail outcomes
+   - Failure reasons
+   - Timing data
+   - Execution logs
+   - Exportable QA records
 
 ### Architecture
 
-- **Reusable**: Can be used by any feature
-- **Extensible**: Easy to add new step types
-- **Isolated**: Doesn't depend on specific features
-- **Flexible**: Supports various test scenarios
+- **MCU-Agnostic**: Works with any MCU via standardized UART protocol
+- **Pi Orchestrates**: Pi decides what, when, and why
+- **MCU Executes Primitives**: MCU runs simple QA Agent with 10 task slots
+- **Separation of Concerns**: Intelligence on Pi, simplicity on MCU
 
 ## Development Rules
 
@@ -60,8 +68,11 @@ The Test Sequences feature provides a general-purpose sequence engine for defini
 ### Code Organization
 
 - Feature code in: `features/test_sequences/`
-- Core engine: `features/test_sequences/sequence_engine.py`
-- Step types: `features/test_sequences/steps/`
+- Core engine: `features/test_sequences/qa_engine.py`
+- UART manager: `features/test_sequences/uart_manager.py` (or use existing if available)
+- DUT profile: `features/test_sequences/dut_profile.py`
+- Sequence builder: `features/test_sequences/sequence_builder.py`
+- UI components: `ui/sections/qa_test_sequences_section.py`
 - Tests in: `tests/test_test_sequences.py`
 
 ### Testing Requirements
@@ -84,35 +95,42 @@ The Test Sequences feature provides a general-purpose sequence engine for defini
 
 Feature is complete when:
 
-1. Sequences can be defined and saved
-2. Sequences execute correctly
-3. All step types work
-4. Timing is accurate
-5. Error handling works
-6. Results are logged correctly
-7. API is usable by other features
-8. All tests pass
-9. App works with feature disabled
-10. App works with feature enabled
+1. DUT profiles can be configured (UART, GPIO, task documentation)
+2. Sequences can be defined and saved
+3. Sequences execute correctly via UART
+4. Task execution (TASK 1-10) works
+5. Sleep control works (Active, Light Sleep, Deep Sleep, Shutdown)
+6. Wake via GPIO works
+7. Timing is accurate
+8. Error handling works (OK/ERR responses)
+9. Results are logged correctly (Pass/Fail, timing, logs)
+10. QA records are exportable
+11. All tests pass
+12. App works with feature disabled
+13. App works with feature enabled
+14. Works with any MCU (MCU-agnostic)
 
 ## Dependencies & Integration
 
 ### Dependencies
 
-- Existing hardware managers: `GPIOManager`, `ADCManager`, `I2CScanner`
+- Existing hardware managers: `GPIOManager` (for WAKE/RESET GPIO)
+- UART communication: Need UART manager or implement in feature
 - Feature flag: `ENABLE_TEST_SEQUENCES`
+- MCU QA Agent: Users provide firmware template (not part of this feature)
 
 ### Integration Points
 
 - Main app: Optional loading via feature flag
-- Hardware: Uses existing managers
-- Other features: Provides API for sequence execution
+- Hardware: Uses `GPIOManager` for WAKE/RESET, UART for communication
+- UART: May need to create UART manager or use existing if available
+- Other features: Independent feature, may be used by Power Profiler later
 
 ### Cross-Feature
 
-- Used by: Power Profiler, future features
+- Independent feature focused on QA test execution
 - Doesn't conflict with other features
-- Can work alongside other features
+- May be used by Power Profiler for power-aware sequences (future)
 
 ## Testing Requirements
 
@@ -138,36 +156,65 @@ Feature is complete when:
 
 ## Implementation Details
 
+### UART Protocol (MCU Side)
+
+The MCU QA Agent must support:
+- `TASK N` - Execute task N (1-10)
+- `SLEEP <mode>` - Enter sleep mode (ACTIVE, LIGHT, DEEP, SHUTDOWN)
+- `WAKE` - Wake from sleep (via GPIO, but acknowledge via UART)
+- `RESET` - Reset MCU (via GPIO)
+- Responses: `OK` or `ERR <reason>`
+
 ### Sequence Format
 
 ```json
 {
-  "name": "GPIO Test",
+  "name": "LCD Test",
   "steps": [
-    {"type": "gpio", "action": "set", "pin": 1, "value": true},
-    {"type": "delay", "duration": 1000},
-    {"type": "gpio", "action": "set", "pin": 1, "value": false}
+    {"type": "wake", "gpio": 5},
+    {"type": "task", "number": 1, "description": "LCD_INIT"},
+    {"type": "wait", "duration": 200, "unit": "ms"},
+    {"type": "task", "number": 2, "description": "LCD_ON"},
+    {"type": "wait", "duration": 2, "unit": "s"},
+    {"type": "task", "number": 3, "description": "LCD_BITMAP", "param": 1},
+    {"type": "wait", "duration": 5, "unit": "s"},
+    {"type": "task", "number": 4, "description": "LCD_OFF"},
+    {"type": "sleep", "mode": "DEEP", "duration": 10, "unit": "minutes"},
+    {"type": "repeat", "count": 100}
   ]
 }
 ```
 
 ### Step Types
 
-- **GPIO**: Set, toggle, read GPIO pins
-- **ADC**: Read ADC channels with sample rate
-- **UART**: Send commands, receive responses
-- **Delay**: Fixed or variable delays
-- **Measurement**: Trigger measurements
-- **Conditional**: If/then/else logic
+- **wake**: Wake DUT via GPIO
+- **task**: Execute TASK N (1-10) via UART
+- **sleep**: Command sleep mode via UART
+- **wait**: Delay (ms/seconds/minutes)
+- **repeat**: Loop sequence
+- **pass/fail**: Conditional logic based on responses
 
-### API for Other Features
+### DUT Profile Format
 
-```python
-from features.test_sequences import SequenceEngine
-
-engine = SequenceEngine(hardware)
-sequence = engine.load_sequence("test.json")
-results = engine.execute(sequence)
+```json
+{
+  "name": "STM32U5 DUT",
+  "uart": {
+    "port": "/dev/ttyUSB0",
+    "baud": 115200
+  },
+  "gpio": {
+    "wake": 5,
+    "reset": 6
+  },
+  "tasks": {
+    "1": "LCD_INIT",
+    "2": "LCD_ON",
+    "3": "LCD_BITMAP",
+    "4": "LCD_OFF",
+    ...
+  }
+}
 ```
 
 ## Common Issues & Solutions
@@ -192,9 +239,22 @@ results = engine.execute(sequence)
 
 ## Notes
 
-- Focus on reusability
-- Keep API simple and stable
-- Support extensibility
-- Document API thoroughly
-- Test with multiple use cases
+- **MCU-Agnostic**: Don't require MCU selection in UI
+- **Simple MCU Side**: MCU only executes primitives, no script parsing
+- **Pi Orchestrates**: All intelligence and decision-making on Pi
+- **QA Focus**: This is a QA test executive, not a debugger or power instrument
+- **Task Numbers**: Use TASK 1-10, not named tasks (keeps protocol simple)
+- **Sleep Control**: Always via UART, wake via GPIO
+- **Documentation**: Users document what each task does in DUT profile
+
+## Non-Goals
+
+This feature does **not**:
+- Generate CubeMX `.ioc` files
+- Flash firmware
+- Inspect LCD pixels or SPI traffic
+- Replace power instruments
+- Parse scripts on MCU
+
+See `QA_Test_Sequences_Design.md` for complete design rationale.
 
