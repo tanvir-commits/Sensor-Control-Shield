@@ -32,6 +32,21 @@ except Exception as e:
     except Exception:
         DEVICE_SYSTEM_AVAILABLE = False
 
+# Optional test sequences feature
+try:
+    from config.feature_flags import ENABLE_TEST_SEQUENCES
+    if ENABLE_TEST_SEQUENCES:
+        try:
+            from .sections.qa_test_sequences_section import QATestSequencesSection
+            TEST_SEQUENCES_AVAILABLE = True
+        except Exception as e:
+            print(f"Test sequences UI not available: {e}")
+            TEST_SEQUENCES_AVAILABLE = False
+    else:
+        TEST_SEQUENCES_AVAILABLE = False
+except Exception as e:
+    TEST_SEQUENCES_AVAILABLE = False
+
 
 class MainWindow(QMainWindow):
     """Main application window."""
@@ -44,7 +59,7 @@ class MainWindow(QMainWindow):
         self.branch = branch or "unknown"  # Current git branch
         
         # Set window title with branch name
-        title = f"Device Panel [{self.branch}]"
+        title = f"DeviceOps [{self.branch}]"
         self.setWindowTitle(title)
         self.setMinimumSize(900, 850)
         self.resize(1000, 1100)  # Start taller - increased height
@@ -90,8 +105,8 @@ class MainWindow(QMainWindow):
         # Create hardware widget (existing functionality)
         hardware_widget = self.create_hardware_widget()
         
-        # Create tab widget if device system available
-        if DEVICE_SYSTEM_AVAILABLE:
+        # Create tab widget if device system or test sequences available
+        if DEVICE_SYSTEM_AVAILABLE or TEST_SEQUENCES_AVAILABLE:
             self.tab_widget = QTabWidget()
             # Set larger font for main tabs
             tab_font = self.tab_widget.font()
@@ -119,6 +134,24 @@ class MainWindow(QMainWindow):
                 }
             """)
             self.tab_widget.addTab(hardware_widget, "Hardware")
+            
+            # Add test sequences tab if available
+            if TEST_SEQUENCES_AVAILABLE:
+                try:
+                    qa_engine = getattr(self.mock_hardware, 'qa_engine', None)
+                    profile_manager = getattr(self.mock_hardware, 'dut_profile_manager', None)
+                    sequence_builder = getattr(self.mock_hardware, 'sequence_builder', None)
+                    results_manager = getattr(self.mock_hardware, 'results_manager', None)
+                    self.qa_test_sequences_section = QATestSequencesSection(
+                        qa_engine=qa_engine,
+                        profile_manager=profile_manager,
+                        sequence_builder=sequence_builder,
+                        results_manager=results_manager
+                    )
+                    self.tab_widget.addTab(self.qa_test_sequences_section, "QA Test Sequences")
+                except Exception as e:
+                    print(f"Failed to create test sequences tab: {e}", file=sys.stderr)
+            
             self.tab_widget.setTabsClosable(True)
             self.tab_widget.tabCloseRequested.connect(self.on_tab_close_requested)
             self.setCentralWidget(self.tab_widget)
@@ -335,6 +368,12 @@ class MainWindow(QMainWindow):
         
         # Don't allow closing the Hardware tab (index 0)
         if index == 0:
+            return
+        
+        # Don't allow closing the QA Test Sequences tab
+        if TEST_SEQUENCES_AVAILABLE and hasattr(self, 'qa_test_sequences_section'):
+            if widget == self.qa_test_sequences_section:
+                return
             return
         
         # Remove from device_tabs dict

@@ -5,10 +5,10 @@ Features must work when disabled (graceful degradation).
 """
 
 # Power Profiler feature
-ENABLE_POWER_PROFILER = False
+ENABLE_POWER_PROFILER = True
 
 # Test Sequences feature
-ENABLE_TEST_SEQUENCES = False
+ENABLE_TEST_SEQUENCES = True
 
 # Smart Suggestions feature
 ENABLE_SMART_SUGGESTIONS = False

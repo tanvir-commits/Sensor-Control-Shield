@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=DeviceOps
+Comment=DeviceOps - Hardware monitoring and control application
+Exec=/home/a/projects/DeviceOps/launch_device_panel.sh
+Icon=gnome-system-monitor
+Terminal=false
+Categories=System;
+StartupNotify=true
+Path=/home/a/projects/DeviceOps
+

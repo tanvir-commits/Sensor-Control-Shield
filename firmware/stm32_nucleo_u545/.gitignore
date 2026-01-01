@@ -1,0 +1,25 @@
+# Build output
+build/
+*.o
+*.d
+*.lst
+*.elf
+*.hex
+*.bin
+*.map
+
+# STM32CubeU5 (large, user downloads separately)
+STM32CubeU5/
+stm32cubefw_u5*.zip
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# STM32CubeProgrammer
+STM32CubeProgrammer/
+
+

@@ -1,0 +1,359 @@
+"""Suggestions dialog - UI for displaying and launching app suggestions."""
+
+import sys
+from typing import Optional, Dict, List
+from PySide6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QListWidget, QListWidgetItem, QGroupBox, QTextEdit, QWidget
+)
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QAction
+
+from ..device_detector import DeviceDetector, DeviceInfo
+from ..suggestion_engine import SuggestionEngine, Suggestion
+
+
+class SuggestionsDialog(QDialog):
+    """Dialog for displaying device suggestions and launching apps."""
+    
+    def __init__(self, hardware, parent=None):
+        super().__init__(parent)
+        self.hardware = hardware
+        self.detector = DeviceDetector()
+        self.engine = SuggestionEngine()
+        self.running_apps: Dict[str, object] = {}  # app_class -> app instance
+        self.launch_actions: Dict[str, QAction] = {}  # app_class -> QAction (for automation)
+        self.current_app_index = -1  # Current app index for cycling (synced with main_window)
+        
+        self.setWindowTitle("App Suggestions")
+        self.setMinimumSize(700, 600)
+        self.resize(800, 700)
+        
+        self.setup_ui()
+        self.scan_devices()
+    
+    def setup_ui(self):
+        """Set up the UI layout."""
+        layout = QVBoxLayout()
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 15, 20, 20)
+        
+        # Title
+        title = QLabel("App Suggestions")
+        title_font = QFont()
+        title_font.setPointSize(16)
+        title_font.setBold(True)
+        title.setFont(title_font)
+        title.setStyleSheet("font-size: 16pt; font-weight: bold; padding: 10px;")
+        layout.addWidget(title)
+        
+        # Detected devices section
+        devices_group = QGroupBox("Detected Devices")
+        devices_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 16pt;
+                font-weight: bold;
+                padding-top: 20px;
+                margin-top: 10px;
+            }
+        """)
+        devices_layout = QVBoxLayout()
+        self.devices_list = QListWidget()
+        self.devices_list.setMaximumHeight(150)
+        # Match font to other tabs
+        font = self.devices_list.font()
+        font.setPointSize(14)
+        font.setBold(True)
+        self.devices_list.setFont(font)
+        devices_layout.addWidget(self.devices_list)
+        devices_group.setLayout(devices_layout)
+        layout.addWidget(devices_group)
+        
+        # Suggestions section
+        suggestions_group = QGroupBox("Suggested Apps")
+        suggestions_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 16pt;
+                font-weight: bold;
+                padding-top: 20px;
+                margin-top: 10px;
+            }
+        """)
+        suggestions_layout = QVBoxLayout()
+        self.suggestions_list = QListWidget()
+        self.suggestions_list.setMinimumHeight(300)
+        # Match font to other tabs
+        font = self.suggestions_list.font()
+        font.setPointSize(14)
+        font.setBold(True)
+        self.suggestions_list.setFont(font)
+        suggestions_layout.addWidget(self.suggestions_list)
+        suggestions_group.setLayout(suggestions_layout)
+        layout.addWidget(suggestions_group)
+        
+        # Running apps section
+        running_group = QGroupBox("Running Apps")
+        running_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 16pt;
+                font-weight: bold;
+                padding-top: 20px;
+                margin-top: 10px;
+            }
+        """)
+        running_layout = QVBoxLayout()
+        self.running_list = QListWidget()
+        self.running_list.setMaximumHeight(100)
+        # Match font to other tabs
+        font = self.running_list.font()
+        font.setPointSize(14)
+        font.setBold(True)
+        self.running_list.setFont(font)
+        running_layout.addWidget(self.running_list)
+        running_group.setLayout(running_layout)
+        layout.addWidget(running_group)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        refresh_button = QPushButton("Refresh")
+        refresh_button.clicked.connect(self.scan_devices)
+        button_layout.addWidget(refresh_button)
+        
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.accept)
+        button_layout.addWidget(close_button)
+        
+        layout.addLayout(button_layout)
+        
+        self.setLayout(layout)
+    
+    def scan_devices(self):
+        """Scan for devices and generate suggestions."""
+        try:
+            # Clear lists
+            self.devices_list.clear()
+            self.suggestions_list.clear()
+            
+            # Scan devices
+            devices = self.detector.scan_all_devices(self.hardware)
+            
+            # Display devices
+            if not devices:
+                item = QListWidgetItem("No devices detected. Connect I2C devices and try again.")
+                item.setForeground(Qt.GlobalColor.gray)
+                self.devices_list.addItem(item)
+            else:
+                for device in devices:
+                    category_str = f" [{device.category}]" if device.category else ""
+                    text = f"0x{device.address:02X} - {device.device_name}{category_str} (Bus {device.bus})"
+                    item = QListWidgetItem(text)
+                    self.devices_list.addItem(item)
+            
+            # Generate suggestions
+            suggestions = self.engine.generate_suggestions(devices)
+            
+            # Display suggestions
+            if not suggestions:
+                item = QListWidgetItem("No app suggestions available for detected devices.")
+                item.setForeground(Qt.GlobalColor.gray)
+                self.suggestions_list.addItem(item)
+            else:
+                for suggestion in suggestions:
+                    # Create widget for suggestion
+                    widget = self._create_suggestion_widget(suggestion, devices)
+                    item = QListWidgetItem()
+                    item.setSizeHint(widget.sizeHint())
+                    self.suggestions_list.addItem(item)
+                    self.suggestions_list.setItemWidget(item, widget)
+        
+        except Exception as e:
+            print(f"Error scanning devices: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            
+            error_item = QListWidgetItem(f"Error scanning devices: {e}")
+            error_item.setForeground(Qt.GlobalColor.red)
+            self.devices_list.addItem(error_item)
+    
+    def _create_suggestion_widget(self, suggestion: Suggestion, devices: List[DeviceInfo]) -> QWidget:
+        """Create a widget for displaying a suggestion."""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(10, 5, 10, 5)
+        
+        # App name and description
+        name_label = QLabel(f"<b>{suggestion.app_name}</b>")
+        name_font = QFont()
+        name_font.setPointSize(14)
+        name_font.setBold(True)
+        name_label.setFont(name_font)
+        name_label.setStyleSheet("font-size: 14pt; font-weight: bold;")
+        layout.addWidget(name_label)
+        
+        desc_label = QLabel(suggestion.description)
+        desc_label.setWordWrap(True)
+        desc_label.setStyleSheet("font-size: 12pt;")
+        layout.addWidget(desc_label)
+        
+        # Required devices
+        req_text = "Requires: " + ", ".join(suggestion.required_devices)
+        req_label = QLabel(req_text)
+        req_label.setStyleSheet("color: #666; font-size: 12pt;")
+        layout.addWidget(req_label)
+        
+        # Launch/Stop button (using QAction for automation)
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        if suggestion.app_class in self.running_apps:
+            stop_action = QAction("Stop", self)
+            stop_action.setObjectName(f"stop_{suggestion.app_class}_action")
+            stop_action.triggered.connect(lambda: self.stop_app(suggestion.app_class))
+            stop_button = QPushButton("Stop")
+            stop_button.setObjectName(f"stop_button_{suggestion.app_class}")
+            stop_button.clicked.connect(stop_action.trigger)  # Connect button to action
+            button_layout.addWidget(stop_button)
+        else:
+            # Create QAction for programmatic triggering
+            launch_action = QAction("Launch", self)
+            launch_action.setObjectName(f"launch_{suggestion.app_class}_action")
+            launch_action.triggered.connect(lambda: self.launch_app(suggestion.app_class, devices))
+            self.launch_actions[suggestion.app_class] = launch_action  # Store for automation
+            
+            # Use action in button - PySide6 compatible way
+            launch_button = QPushButton("Launch")
+            launch_button.setObjectName(f"launch_button_{suggestion.app_class}")
+            launch_button.setAccessibleName(f"Launch {suggestion.app_name}")  # For accessibility tools
+            launch_button.setAccessibleDescription(f"Launch the {suggestion.app_name} application")
+            launch_button.clicked.connect(launch_action.trigger)  # Connect button to action
+            # Make it the default button so Enter key triggers it - SIMPLE automation!
+            if suggestion.app_class == "TiltGameApp":  # Make first suggestion default
+                launch_button.setDefault(True)
+            button_layout.addWidget(launch_button)
+        
+        layout.addLayout(button_layout)
+        
+        widget.setLayout(layout)
+        return widget
+    
+    def launch_app(self, app_class_name: str, devices: List[DeviceInfo]):
+        """Launch an app. Stops any currently running app first."""
+        try:
+            # Stop any currently running apps first (AppManager handles this globally)
+            if self.running_apps:
+                print(f"Stopping {len(self.running_apps)} running app(s) before launching {app_class_name}...")
+                for running_app_class, running_app in list(self.running_apps.items()):
+                    try:
+                        running_app.stop()
+                        print(f"Stopped app: {running_app_class}")
+                    except Exception as e:
+                        print(f"Error stopping app {running_app_class}: {e}", file=sys.stderr)
+                self.running_apps.clear()
+                self.update_running_apps()
+            
+            # Import app class
+            if app_class_name == "TiltGameApp":
+                from ..apps.tilt_game import TiltGameApp
+                app_class = TiltGameApp
+            elif app_class_name == "LevelApp":
+                from ..apps.level_app import LevelApp
+                app_class = LevelApp
+            elif app_class_name == "GravityVectorApp":
+                from ..apps.gravity_vector_app import GravityVectorApp
+                app_class = GravityVectorApp
+            elif app_class_name == "OrientationCubeApp":
+                from ..apps.orientation_cube_app import OrientationCubeApp
+                app_class = OrientationCubeApp
+            elif app_class_name == "ParticleSystemApp":
+                from ..apps.particle_system_app import ParticleSystemApp
+                app_class = ParticleSystemApp
+            elif app_class_name == "SpinningGyroscopeApp":
+                from ..apps.spinning_gyroscope_app import SpinningGyroscopeApp
+                app_class = SpinningGyroscopeApp
+            else:
+                print(f"Unknown app class: {app_class_name}")
+                return
+            
+            # Create app instance
+            app = app_class()
+            
+            # Start app
+            if app.start(self.hardware, devices):
+                self.running_apps[app_class_name] = app
+                self.update_running_apps()
+                self.scan_devices()  # Refresh to show "Stop" button
+                
+                # Update current_app_index to match the launched app (sync with button2)
+                suggestions = self.engine.generate_suggestions(devices)
+                for idx, suggestion in enumerate(suggestions):
+                    if suggestion.app_class == app_class_name:
+                        self.current_app_index = idx
+                        # Sync with main_window if parent exists
+                        if self.parent() and hasattr(self.parent(), 'current_app_index'):
+                            self.parent().current_app_index = idx
+                        break
+                
+                print(f"Launched app: {app_class_name}")
+            else:
+                print(f"Failed to start app: {app_class_name}")
+        
+        except Exception as e:
+            print(f"Error launching app {app_class_name}: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+    
+    def stop_app(self, app_class_name: str):
+        """Stop a running app."""
+        try:
+            if app_class_name in self.running_apps:
+                app = self.running_apps[app_class_name]
+                app.stop()
+                del self.running_apps[app_class_name]
+                self.update_running_apps()
+                self.scan_devices()  # Refresh to show "Launch" button
+                print(f"Stopped app: {app_class_name}")
+        
+        except Exception as e:
+            print(f"Error stopping app {app_class_name}: {e}", file=sys.stderr)
+    
+    def trigger_launch(self, app_class_name: str) -> bool:
+        """Programmatically trigger launch for an app (for automation).
+        
+        Args:
+            app_class_name: Name of app class to launch (e.g., "TiltGameApp")
+            
+        Returns:
+            True if action was triggered, False if not found
+        """
+        if app_class_name in self.launch_actions:
+            action = self.launch_actions[app_class_name]
+            action.trigger()  # Trigger the action programmatically
+            return True
+        return False
+    
+    def update_running_apps(self):
+        """Update the running apps list."""
+        self.running_list.clear()
+        
+        if not self.running_apps:
+            item = QListWidgetItem("No apps running")
+            item.setForeground(Qt.GlobalColor.gray)
+            self.running_list.addItem(item)
+        else:
+            for app_class_name in self.running_apps.keys():
+                item = QListWidgetItem(app_class_name)
+                self.running_list.addItem(item)
+    
+    def closeEvent(self, event):
+        """Stop all apps when dialog closes."""
+        try:
+            for app in list(self.running_apps.values()):
+                app.stop()
+            self.running_apps.clear()
+        except Exception as e:
+            print(f"Error stopping apps on close: {e}")
+        
+        event.accept()
+

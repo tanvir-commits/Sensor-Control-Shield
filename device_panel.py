@@ -19,6 +19,42 @@ from hardware.spi_tester import SPITester
 from hardware.power_manager import PowerManager
 from config.pins import I2C_BUS
 
+# Optional power profiler feature
+try:
+    from config.feature_flags import ENABLE_POWER_PROFILER
+    if ENABLE_POWER_PROFILER:
+        try:
+            from hardware.power_measurement import PowerMeasurementManager
+            from features.power_profiler.power_profiler import PowerProfiler
+            from features.power_profiler.sequence_engine import SequenceEngine
+            POWER_PROFILER_AVAILABLE = True
+        except Exception as e:
+            print(f"Power profiler not available: {e}")
+            POWER_PROFILER_AVAILABLE = False
+    else:
+        POWER_PROFILER_AVAILABLE = False
+except Exception as e:
+    POWER_PROFILER_AVAILABLE = False
+
+# Optional test sequences feature
+try:
+    from config.feature_flags import ENABLE_TEST_SEQUENCES
+    if ENABLE_TEST_SEQUENCES:
+        try:
+            from hardware.uart_manager import UARTManager
+            from features.test_sequences.dut_profile import DUTProfileManager
+            from features.test_sequences.sequence_builder import SequenceBuilder
+            from features.test_sequences.qa_engine import QAEngine
+            from features.test_sequences.results import ResultsManager
+            TEST_SEQUENCES_AVAILABLE = True
+        except Exception as e:
+            print(f"Test sequences not available: {e}")
+            TEST_SEQUENCES_AVAILABLE = False
+    else:
+        TEST_SEQUENCES_AVAILABLE = False
+except Exception as e:
+    TEST_SEQUENCES_AVAILABLE = False
+
 
 class Hardware:
     """Container for all hardware managers."""
@@ -29,6 +65,55 @@ class Hardware:
         self.i2c = I2CScanner(bus=I2C_BUS)
         self.spi = SPITester()
         self.power = PowerManager()
+        
+        # Optional power profiler feature
+        if POWER_PROFILER_AVAILABLE:
+            try:
+                self.power_measurement = PowerMeasurementManager()
+                self.power_profiler = PowerProfiler(
+                    power_manager=self.power_measurement,
+                    gpio_manager=self.gpio,
+                    adc_manager=self.adc
+                )
+                self.sequence_engine = SequenceEngine(
+                    profiler=self.power_profiler,
+                    gpio_manager=self.gpio,
+                    adc_manager=self.adc
+                )
+            except Exception as e:
+                print(f"Failed to initialize power profiler: {e}")
+                self.power_measurement = None
+                self.power_profiler = None
+                self.sequence_engine = None
+        else:
+            self.power_measurement = None
+            self.power_profiler = None
+            self.sequence_engine = None
+        
+        # Optional test sequences feature
+        if TEST_SEQUENCES_AVAILABLE:
+            try:
+                self.uart = UARTManager()
+                self.dut_profile_manager = DUTProfileManager()
+                self.sequence_builder = SequenceBuilder()
+                self.qa_engine = QAEngine(
+                    uart_manager=self.uart,
+                    gpio_manager=self.gpio
+                )
+                self.results_manager = ResultsManager()
+            except Exception as e:
+                print(f"Failed to initialize test sequences: {e}")
+                self.uart = None
+                self.dut_profile_manager = None
+                self.sequence_builder = None
+                self.qa_engine = None
+                self.results_manager = None
+        else:
+            self.uart = None
+            self.dut_profile_manager = None
+            self.sequence_builder = None
+            self.qa_engine = None
+            self.results_manager = None
 
 
 def get_git_branch():
@@ -69,7 +154,7 @@ def main():
         
         # Create Qt application
         app = QApplication(sys.argv)
-        app_name = f"Device Panel [{branch}]"
+        app_name = f"DeviceOps [{branch}]"
         app.setApplicationName(app_name)
         
         # Create hardware managers
