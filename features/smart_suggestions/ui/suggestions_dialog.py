@@ -23,6 +23,7 @@ class SuggestionsDialog(QDialog):
         self.engine = SuggestionEngine()
         self.running_apps: Dict[str, object] = {}  # app_class -> app instance
         self.launch_actions: Dict[str, QAction] = {}  # app_class -> QAction (for automation)
+        self.current_app_index = -1  # Current app index for cycling (synced with main_window)
         
         self.setWindowTitle("App Suggestions")
         self.setMinimumSize(700, 600)
@@ -240,7 +241,7 @@ class SuggestionsDialog(QDialog):
     def launch_app(self, app_class_name: str, devices: List[DeviceInfo]):
         """Launch an app. Stops any currently running app first."""
         try:
-            # Stop any currently running apps first
+            # Stop any currently running apps first (AppManager handles this globally)
             if self.running_apps:
                 print(f"Stopping {len(self.running_apps)} running app(s) before launching {app_class_name}...")
                 for running_app_class, running_app in list(self.running_apps.items()):
@@ -259,6 +260,18 @@ class SuggestionsDialog(QDialog):
             elif app_class_name == "LevelApp":
                 from ..apps.level_app import LevelApp
                 app_class = LevelApp
+            elif app_class_name == "GravityVectorApp":
+                from ..apps.gravity_vector_app import GravityVectorApp
+                app_class = GravityVectorApp
+            elif app_class_name == "OrientationCubeApp":
+                from ..apps.orientation_cube_app import OrientationCubeApp
+                app_class = OrientationCubeApp
+            elif app_class_name == "ParticleSystemApp":
+                from ..apps.particle_system_app import ParticleSystemApp
+                app_class = ParticleSystemApp
+            elif app_class_name == "SpinningGyroscopeApp":
+                from ..apps.spinning_gyroscope_app import SpinningGyroscopeApp
+                app_class = SpinningGyroscopeApp
             else:
                 print(f"Unknown app class: {app_class_name}")
                 return
@@ -271,6 +284,17 @@ class SuggestionsDialog(QDialog):
                 self.running_apps[app_class_name] = app
                 self.update_running_apps()
                 self.scan_devices()  # Refresh to show "Stop" button
+                
+                # Update current_app_index to match the launched app (sync with button2)
+                suggestions = self.engine.generate_suggestions(devices)
+                for idx, suggestion in enumerate(suggestions):
+                    if suggestion.app_class == app_class_name:
+                        self.current_app_index = idx
+                        # Sync with main_window if parent exists
+                        if self.parent() and hasattr(self.parent(), 'current_app_index'):
+                            self.parent().current_app_index = idx
+                        break
+                
                 print(f"Launched app: {app_class_name}")
             else:
                 print(f"Failed to start app: {app_class_name}")

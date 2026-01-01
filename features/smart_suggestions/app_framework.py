@@ -5,6 +5,7 @@ from typing import Optional, List
 from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import QTimer
 from .device_detector import DeviceInfo
+from .app_manager import AppManager
 
 
 class BaseApp(ABC):
@@ -16,6 +17,7 @@ class BaseApp(ABC):
         self.running = False
         self.update_timer: Optional[QTimer] = None
         self.update_interval = 50  # milliseconds (20 Hz default)
+        self.app_manager = AppManager()
     
     def start(self, hardware, devices: List[DeviceInfo]) -> bool:
         """Start the app with given hardware and devices.
@@ -35,6 +37,9 @@ class BaseApp(ABC):
             if not self._initialize():
                 return False
             
+            # Register with app manager (stops other apps first)
+            self.app_manager.register_app(self)
+            
             # Start update timer
             self.update_timer = QTimer()
             self.update_timer.timeout.connect(self.update)
@@ -52,15 +57,27 @@ class BaseApp(ABC):
     def stop(self) -> None:
         """Stop the app and cleanup."""
         try:
+            # Set running to False FIRST to prevent any update() calls from continuing
             self.running = False
             
-            # Stop update timer
+            # Stop update timer immediately and disconnect all signals
             if self.update_timer:
                 self.update_timer.stop()
+                try:
+                    self.update_timer.timeout.disconnect()  # Disconnect signal to prevent any pending calls
+                except:
+                    pass  # May already be disconnected
                 self.update_timer = None
             
-            # Call subclass cleanup
+            # Small delay to ensure any in-flight update() completes
+            import time
+            time.sleep(0.1)  # Increased delay
+            
+            # Call subclass cleanup (which should clear display)
             self._cleanup()
+            
+            # Unregister from app manager
+            self.app_manager.unregister_app(self)
         
         except Exception as e:
             print(f"Error stopping app {self.__class__.__name__}: {e}")

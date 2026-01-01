@@ -32,6 +32,36 @@ except Exception as e:
     except Exception:
         DEVICE_SYSTEM_AVAILABLE = False
 
+# Optional power profiler feature
+try:
+    from config.feature_flags import ENABLE_POWER_PROFILER
+    if ENABLE_POWER_PROFILER:
+        try:
+            from .sections.power_profiler_section import PowerProfilerSection
+            POWER_PROFILER_AVAILABLE = True
+        except Exception as e:
+            print(f"Power profiler UI not available: {e}")
+            POWER_PROFILER_AVAILABLE = False
+    else:
+        POWER_PROFILER_AVAILABLE = False
+except Exception as e:
+    POWER_PROFILER_AVAILABLE = False
+
+# Optional test sequences feature
+try:
+    from config.feature_flags import ENABLE_TEST_SEQUENCES
+    if ENABLE_TEST_SEQUENCES:
+        try:
+            from .sections.qa_test_sequences_section import QATestSequencesSection
+            TEST_SEQUENCES_AVAILABLE = True
+        except Exception as e:
+            print(f"Test sequences UI not available: {e}")
+            TEST_SEQUENCES_AVAILABLE = False
+    else:
+        TEST_SEQUENCES_AVAILABLE = False
+except Exception as e:
+    TEST_SEQUENCES_AVAILABLE = False
+
 
 class MainWindow(QMainWindow):
     """Main application window."""
@@ -42,6 +72,36 @@ class MainWindow(QMainWindow):
         self.hardware = mock_hardware  # Alias for clarity
         self.device_tabs = {}  # Track open device tabs: (bus, address) -> tab
         self.branch = branch or "unknown"  # Current git branch
+        self.suggestions_dialog = None  # Reference to suggestions dialog for button2 cycling
+        self.button2_prev_state = False  # Previous button2 state for edge detection
+        self.current_app_index = -1  # Current app index in cycling (shared with dialog)
+        self.running_app = None  # Currently running app (when launched directly)
+        
+        # Ensure no apps are running on startup (clear AppManager)
+        try:
+            from features.smart_suggestions.app_manager import AppManager
+            app_manager = AppManager()
+            app_manager.stop_all_apps()  # Clear any stale apps
+        except:
+            pass  # Ignore if AppManager not available
+        
+        # Clear display on startup to ensure no leftover graphics
+        try:
+            from features.smart_suggestions.device_detector import DeviceDetector
+            from features.smart_suggestions.display.display_factory import DisplayFactory
+            detector = DeviceDetector()
+            devices = detector.scan_all_devices(self.hardware)
+            # Find display devices and clear them
+            for device in devices:
+                if device.category == "DISPLAY":
+                    display = DisplayFactory.create_display(device)
+                    if display:
+                        display.clear()
+                        display.cleanup()
+                        print(f"Cleared display {device.device_name} on startup")
+        except Exception as e:
+            print(f"Error clearing display on startup: {e}")
+            pass  # Ignore errors - display might not be available
         
         # Set window title with branch name
         title = f"Device Panel [{self.branch}]"
@@ -90,8 +150,8 @@ class MainWindow(QMainWindow):
         # Create hardware widget (existing functionality)
         hardware_widget = self.create_hardware_widget()
         
-        # Create tab widget if device system available
-        if DEVICE_SYSTEM_AVAILABLE:
+        # Create tab widget if device system, power profiler, or test sequences available
+        if DEVICE_SYSTEM_AVAILABLE or POWER_PROFILER_AVAILABLE or TEST_SEQUENCES_AVAILABLE:
             self.tab_widget = QTabWidget()
             # Set larger font for main tabs
             tab_font = self.tab_widget.font()
@@ -119,11 +179,42 @@ class MainWindow(QMainWindow):
                 }
             """)
             self.tab_widget.addTab(hardware_widget, "Hardware")
+            
+            # Add power profiler tab if available
+            if POWER_PROFILER_AVAILABLE:
+                try:
+                    power_profiler = getattr(self.mock_hardware, 'power_profiler', None)
+                    sequence_engine = getattr(self.mock_hardware, 'sequence_engine', None)
+                    self.power_profiler_section = PowerProfilerSection(
+                        profiler=power_profiler,
+                        sequence_engine=sequence_engine
+                    )
+                    self.tab_widget.addTab(self.power_profiler_section, "Power Profiler")
+                except Exception as e:
+                    print(f"Failed to create power profiler tab: {e}", file=sys.stderr)
+            
+            # Add test sequences tab if available
+            if TEST_SEQUENCES_AVAILABLE:
+                try:
+                    qa_engine = getattr(self.mock_hardware, 'qa_engine', None)
+                    dut_profile_manager = getattr(self.mock_hardware, 'dut_profile_manager', None)
+                    sequence_builder = getattr(self.mock_hardware, 'sequence_builder', None)
+                    results_manager = getattr(self.mock_hardware, 'results_manager', None)
+                    self.qa_test_sequences_section = QATestSequencesSection(
+                        qa_engine=qa_engine,
+                        profile_manager=dut_profile_manager,
+                        sequence_builder=sequence_builder,
+                        results_manager=results_manager
+                    )
+                    self.tab_widget.addTab(self.qa_test_sequences_section, "QA Test Sequences")
+                except Exception as e:
+                    print(f"Failed to create test sequences tab: {e}", file=sys.stderr)
+            
             self.tab_widget.setTabsClosable(True)
             self.tab_widget.tabCloseRequested.connect(self.on_tab_close_requested)
             self.setCentralWidget(self.tab_widget)
         else:
-            # No device system - use single widget (backward compatible)
+            # No device system or power profiler - use single widget (backward compatible)
             self.setCentralWidget(hardware_widget)
         
         # Add menu bar with smart suggestions (if enabled)
@@ -169,7 +260,13 @@ class MainWindow(QMainWindow):
         try:
             from features.smart_suggestions.ui.suggestions_dialog import SuggestionsDialog
             dialog = SuggestionsDialog(self.hardware, self)
+            self.suggestions_dialog = dialog  # Store reference for button2 cycling
+            # Sync app index with dialog
+            dialog.current_app_index = self.current_app_index
             dialog.exec()
+            # Sync app index back from dialog
+            self.current_app_index = dialog.current_app_index
+            self.suggestions_dialog = None  # Clear reference when closed
         except Exception as e:
             print(f"Error showing suggestions: {e}", file=sys.stderr)
             import traceback
@@ -253,6 +350,22 @@ class MainWindow(QMainWindow):
                     2: self.mock_hardware.gpio.get_button(2)
                 }
                 self.button_section.update_states(button_states)
+                
+                # Handle button2 press for app cycling
+                # Skip app cycling if QA Test Sequences tab is active (it has its own controls)
+                button2_pressed = button_states[2]
+                if button2_pressed and not self.button2_prev_state:
+                    # Check if QA Test Sequences tab is active
+                    skip_cycling = False
+                    if hasattr(self, 'tab_widget') and TEST_SEQUENCES_AVAILABLE:
+                        current_widget = self.tab_widget.currentWidget()
+                        if hasattr(self, 'qa_test_sequences_section') and current_widget == self.qa_test_sequences_section:
+                            skip_cycling = True
+                    
+                    if not skip_cycling:
+                        # Button2 just pressed (edge trigger) - cycle to next app
+                        self.cycle_to_next_app()
+                self.button2_prev_state = button2_pressed
             
             # Update LED states (sync UI with hardware state)
             if hasattr(self.mock_hardware, 'gpio'):
@@ -277,6 +390,133 @@ class MainWindow(QMainWindow):
             # Log error but don't crash - just skip this update cycle
             import traceback
             print(f"Error in update_all: {e}", file=sys.stderr)
+            traceback.print_exc()
+    
+    def cycle_to_next_app(self):
+        """Cycle to the next available app when button2 is pressed."""
+        try:
+            # Check if suggestions dialog exists and has suggestions
+            if not self.suggestions_dialog:
+                # Dialog not open - try to get available apps from detector
+                from features.smart_suggestions.device_detector import DeviceDetector
+                from features.smart_suggestions.suggestion_engine import SuggestionEngine
+                
+                detector = DeviceDetector()
+                engine = SuggestionEngine()
+                devices = detector.scan_all_devices(self.hardware)
+                suggestions = engine.generate_suggestions(devices)
+                
+                if not suggestions:
+                    print("No app suggestions available for cycling")
+                    return
+                
+                # Cycle through suggestions
+                # If current_app_index is -1 (no app launched yet), start at 0
+                # Otherwise, increment to next app
+                if self.current_app_index == -1:
+                    self.current_app_index = 0
+                else:
+                    self.current_app_index = (self.current_app_index + 1) % len(suggestions)
+                
+                next_suggestion = suggestions[self.current_app_index]
+                
+                print(f"Button2: Cycling to app {self.current_app_index + 1}/{len(suggestions)}: {next_suggestion.app_name}")
+                
+                # Launch the app directly
+                self._launch_app_directly(next_suggestion.app_class, devices)
+                
+                # If dialog exists, sync the index
+                if self.suggestions_dialog:
+                    self.suggestions_dialog.current_app_index = self.current_app_index
+            else:
+                # Dialog is open - use its suggestions
+                if hasattr(self.suggestions_dialog, 'engine') and hasattr(self.suggestions_dialog, 'detector'):
+                    devices = self.suggestions_dialog.detector.scan_all_devices(self.hardware)
+                    suggestions = self.suggestions_dialog.engine.generate_suggestions(devices)
+                    
+                    if not suggestions:
+                        print("No app suggestions available for cycling")
+                        return
+                    
+                    # Cycle through suggestions (sync index with dialog)
+                    self.current_app_index = (self.current_app_index + 1) % len(suggestions)
+                    self.suggestions_dialog.current_app_index = self.current_app_index
+                    next_suggestion = suggestions[self.current_app_index]
+                    
+                    print(f"Button2: Cycling to app {self.current_app_index + 1}/{len(suggestions)}: {next_suggestion.app_name}")
+                    
+                    # Launch via dialog
+                    self.suggestions_dialog.launch_app(next_suggestion.app_class, devices)
+        
+        except Exception as e:
+            print(f"Error cycling to next app: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+    
+    def _launch_app_directly(self, app_class_name: str, devices):
+        """Launch an app directly without dialog."""
+        try:
+            from features.smart_suggestions.apps.tilt_game import TiltGameApp
+            from features.smart_suggestions.apps.level_app import LevelApp
+            from features.smart_suggestions.apps.gravity_vector_app import GravityVectorApp
+            from features.smart_suggestions.apps.orientation_cube_app import OrientationCubeApp
+            from features.smart_suggestions.apps.particle_system_app import ParticleSystemApp
+            from features.smart_suggestions.apps.spinning_gyroscope_app import SpinningGyroscopeApp
+            
+            # Import app class
+            if app_class_name == "TiltGameApp":
+                app_class = TiltGameApp
+            elif app_class_name == "LevelApp":
+                app_class = LevelApp
+            elif app_class_name == "GravityVectorApp":
+                app_class = GravityVectorApp
+            elif app_class_name == "OrientationCubeApp":
+                app_class = OrientationCubeApp
+            elif app_class_name == "ParticleSystemApp":
+                app_class = ParticleSystemApp
+            elif app_class_name == "SpinningGyroscopeApp":
+                app_class = SpinningGyroscopeApp
+            else:
+                print(f"Unknown app class: {app_class_name}")
+                return
+            
+            # Stop any running apps - AppManager handles this globally now
+            # But also clean up our local tracking
+            if self.running_app:
+                try:
+                    self.running_app.stop()
+                    print(f"Stopped previous app in main_window")
+                except Exception as e:
+                    print(f"Error stopping previous app in main_window: {e}")
+                self.running_app = None
+            
+            # Also stop any apps running in suggestions_dialog (if dialog exists)
+            if self.suggestions_dialog and hasattr(self.suggestions_dialog, 'running_apps'):
+                if self.suggestions_dialog.running_apps:
+                    print(f"Stopping {len(self.suggestions_dialog.running_apps)} app(s) from suggestions_dialog...")
+                    for running_app_class, running_app in list(self.suggestions_dialog.running_apps.items()):
+                        try:
+                            running_app.stop()
+                            print(f"Stopped app from dialog: {running_app_class}")
+                        except Exception as e:
+                            print(f"Error stopping app from dialog {running_app_class}: {e}")
+                    self.suggestions_dialog.running_apps.clear()
+                    if hasattr(self.suggestions_dialog, 'update_running_apps'):
+                        self.suggestions_dialog.update_running_apps()
+            
+            # Create app instance
+            app = app_class()
+            
+            # Start app
+            if app.start(self.hardware, devices):
+                self.running_app = app
+                print(f"Launched app: {app_class_name}")
+            else:
+                print(f"Failed to start app: {app_class_name}")
+        
+        except Exception as e:
+            print(f"Error launching app directly: {e}", file=sys.stderr)
+            import traceback
             traceback.print_exc()
     
     def on_led_changed(self, led_id: int, state: bool):
@@ -385,6 +625,16 @@ class MainWindow(QMainWindow):
         # Don't allow closing the Hardware tab (index 0)
         if index == 0:
             return
+        
+        # Don't allow closing the Power Profiler tab if it exists
+        if POWER_PROFILER_AVAILABLE and hasattr(self, 'power_profiler_section'):
+            if widget == self.power_profiler_section:
+                return
+        
+        # Don't allow closing the Test Sequences tab if it exists
+        if TEST_SEQUENCES_AVAILABLE and hasattr(self, 'qa_test_sequences_section'):
+            if widget == self.qa_test_sequences_section:
+                return
         
         # Remove from device_tabs dict
         for key, tab in list(self.device_tabs.items()):
