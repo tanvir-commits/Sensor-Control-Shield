@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QGroupBox, QTextEdit, QWidget
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QAction
 
 from ..device_detector import DeviceDetector, DeviceInfo
 from ..suggestion_engine import SuggestionEngine, Suggestion
@@ -22,6 +22,7 @@ class SuggestionsDialog(QDialog):
         self.detector = DeviceDetector()
         self.engine = SuggestionEngine()
         self.running_apps: Dict[str, object] = {}  # app_class -> app instance
+        self.launch_actions: Dict[str, QAction] = {}  # app_class -> QAction (for automation)
         
         self.setWindowTitle("App Suggestions")
         self.setMinimumSize(700, 600)
@@ -201,18 +202,28 @@ class SuggestionsDialog(QDialog):
         req_label.setStyleSheet("color: #666; font-size: 12pt;")
         layout.addWidget(req_label)
         
-        # Launch button
+        # Launch/Stop button (using QAction for automation)
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         
         if suggestion.app_class in self.running_apps:
-            stop_button = QPushButton("Stop")
-            stop_button.clicked.connect(lambda: self.stop_app(suggestion.app_class))
+            stop_action = QAction("Stop", self)
+            stop_action.setObjectName(f"stop_{suggestion.app_class}_action")
+            stop_action.triggered.connect(lambda: self.stop_app(suggestion.app_class))
+            stop_button = QPushButton()
+            stop_button.setDefaultAction(stop_action)
             button_layout.addWidget(stop_button)
         else:
-            launch_button = QPushButton("Launch")
-            launch_button.setObjectName(f"launch_button_{suggestion.app_class}")  # Set object name for automation
-            launch_button.clicked.connect(lambda: self.launch_app(suggestion.app_class, devices))
+            # Create QAction for programmatic triggering
+            launch_action = QAction("Launch", self)
+            launch_action.setObjectName(f"launch_{suggestion.app_class}_action")
+            launch_action.triggered.connect(lambda: self.launch_app(suggestion.app_class, devices))
+            self.launch_actions[suggestion.app_class] = launch_action  # Store for automation
+            
+            # Use action in button
+            launch_button = QPushButton()
+            launch_button.setDefaultAction(launch_action)
+            launch_button.setObjectName(f"launch_button_{suggestion.app_class}")  # Also set on button for xdotool
             button_layout.addWidget(launch_button)
         
         layout.addLayout(button_layout)
@@ -264,6 +275,21 @@ class SuggestionsDialog(QDialog):
         
         except Exception as e:
             print(f"Error stopping app {app_class_name}: {e}", file=sys.stderr)
+    
+    def trigger_launch(self, app_class_name: str) -> bool:
+        """Programmatically trigger launch for an app (for automation).
+        
+        Args:
+            app_class_name: Name of app class to launch (e.g., "TiltGameApp")
+            
+        Returns:
+            True if action was triggered, False if not found
+        """
+        if app_class_name in self.launch_actions:
+            action = self.launch_actions[app_class_name]
+            action.trigger()  # Trigger the action programmatically
+            return True
+        return False
     
     def update_running_apps(self):
         """Update the running apps list."""
