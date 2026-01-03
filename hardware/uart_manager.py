@@ -50,9 +50,15 @@ class UARTManager:
             True if opened successfully, False otherwise
         """
         try:
+            # If already open to the same port with same baud rate, no need to reopen
             if self.connection and self.connection.is_open:
-                self.close()
+                if self.port == port and self.baud_rate == baud_rate:
+                    return True  # Already open to correct port
+                else:
+                    # Close existing connection if port or baud changed
+                    self.close()
             
+            # Try to open the port
             self.connection = serial.Serial(
                 port=port,
                 baudrate=baud_rate,
@@ -69,6 +75,21 @@ class UARTManager:
             self.baud_rate = baud_rate
             self.timeout = timeout
             return True
+        except serial.SerialException as e:
+            error_msg = str(e)
+            # Provide more helpful error messages
+            if "Permission denied" in error_msg or "could not open port" in error_msg.lower():
+                print(f"Error opening UART port {port}: Permission denied. Make sure:")
+                print(f"  1. You are in the 'dialout' or 'plugdev' group: sudo usermod -a -G dialout $USER")
+                print(f"  2. No other program is using the port")
+                print(f"  3. The port exists: ls -l {port}")
+            elif "No such file or directory" in error_msg:
+                print(f"Error opening UART port {port}: Port does not exist")
+                print(f"  Available ports: {[p.device for p in serial.tools.list_ports.comports()]}")
+            else:
+                print(f"Error opening UART port {port}: {e}")
+            self.connection = None
+            return False
         except Exception as e:
             print(f"Error opening UART port {port}: {e}")
             self.connection = None
@@ -76,13 +97,15 @@ class UARTManager:
     
     def close(self):
         """Close UART connection."""
-        if self.connection and self.connection.is_open:
+        if self.connection:
             try:
-                self.connection.close()
+                if self.connection.is_open:
+                    self.connection.close()
             except Exception as e:
                 print(f"Error closing UART: {e}")
-        self.connection = None
-        self.port = None
+            finally:
+                self.connection = None
+                self.port = None
     
     def is_open(self) -> bool:
         """Check if UART connection is open."""
@@ -150,13 +173,13 @@ class UARTManager:
         """Send TASK command to MCU.
         
         Args:
-            task_number: Task number (1-10)
+            task_number: Task number (1-14, firmware supports up to 14 tasks)
         
         Returns:
             Tuple of (success: bool, response: Optional[str])
         """
-        if task_number < 1 or task_number > 10:
-            return False, "Task number must be 1-10"
+        if task_number < 1 or task_number > 16:
+            return False, "Task number must be 1-16"
         
         return self.send_command(f"TASK {task_number}")
     

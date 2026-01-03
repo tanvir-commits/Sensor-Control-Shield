@@ -11,7 +11,7 @@
 /* Private constants */
 #define QA_MAX_CMD_LEN 32
 #define QA_MAX_MSG_LEN 64
-#define QA_NUM_TASKS 10
+#define QA_NUM_TASKS 16
 
 /* Private variables */
 static UART_HandleTypeDef *s_huart = NULL;

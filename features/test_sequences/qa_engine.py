@@ -114,16 +114,16 @@ class QAEngine:
         self.pause_requested = False
         
         # Open UART connection
-        if not self.uart.is_open():
-            if not self.uart.open(dut_profile.uart_port, dut_profile.uart_baud):
-                result = SequenceResult(
-                    sequence_name=sequence.name,
-                    status=ExecutionStatus.FAILED,
-                    start_time=datetime.now(),
-                    error_message=f"Failed to open UART port {dut_profile.uart_port}"
-                )
-                self.status = ExecutionStatus.FAILED
-                return result
+        # Always try to open (will reuse if already open to same port/baud)
+        if not self.uart.open(dut_profile.uart_port, dut_profile.uart_baud):
+            result = SequenceResult(
+                sequence_name=sequence.name,
+                status=ExecutionStatus.FAILED,
+                start_time=datetime.now(),
+                error_message=f"Failed to open UART port {dut_profile.uart_port}. Check permissions and that no other program is using it."
+            )
+            self.status = ExecutionStatus.FAILED
+            return result
         
         # Create result
         self.current_result = SequenceResult(

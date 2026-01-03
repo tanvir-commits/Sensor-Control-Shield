@@ -4,11 +4,16 @@ from PySide6.QtWidgets import (QGroupBox, QVBoxLayout, QHBoxLayout, QPushButton,
                                QLabel, QTableWidget, QTableWidgetItem, QComboBox,
                                QSpinBox, QLineEdit, QTextEdit, QTabWidget, QWidget,
                                QHeaderView, QMessageBox, QFileDialog, QCheckBox, QSizePolicy)
-from PySide6.QtCore import Qt, Signal, QThread
+from PySide6.QtCore import Qt, Signal, QThread, QEvent
 from PySide6.QtGui import QFont
 from typing import Dict, List, Optional
 import time
 import json
+
+try:
+    import serial.tools.list_ports
+except ImportError:
+    serial = None
 
 try:
     from features.test_sequences.dut_profile import DUTProfileManager, DUTProfile
@@ -104,8 +109,14 @@ class DUTProfileWidget(QWidget):
         uart_layout.addWidget(QLabel("UART Port:"))
         self.uart_port_combo = QComboBox()
         self.uart_port_combo.setEditable(True)
-        self.uart_port_combo.setCurrentText("/dev/ttyUSB0")
+        self.uart_port_combo.setMinimumWidth(200)
         uart_layout.addWidget(self.uart_port_combo)
+        
+        # Refresh button for serial ports
+        refresh_uart_button = QPushButton("Refresh")
+        refresh_uart_button.setToolTip("Refresh list of available serial ports")
+        refresh_uart_button.clicked.connect(self.refresh_serial_ports)
+        uart_layout.addWidget(refresh_uart_button)
         
         uart_layout.addWidget(QLabel("Baud:"))
         self.baud_spinbox = QSpinBox()
@@ -114,6 +125,9 @@ class DUTProfileWidget(QWidget):
         self.baud_spinbox.setValue(115200)
         uart_layout.addWidget(self.baud_spinbox)
         details_layout.addLayout(uart_layout)
+        
+        # Populate serial ports on startup
+        self.refresh_serial_ports()
         
         # GPIO settings
         gpio_layout = QHBoxLayout()
@@ -163,6 +177,12 @@ class DUTProfileWidget(QWidget):
         layout.addStretch()
         self.setLayout(layout)
     
+    def showEvent(self, event):
+        """Refresh serial ports when widget becomes visible."""
+        super().showEvent(event)
+        # Refresh serial ports when tab is shown
+        self.refresh_serial_ports()
+    
     def refresh_profiles(self):
         """Refresh profile list."""
         # Disconnect signal temporarily
@@ -193,6 +213,81 @@ class DUTProfileWidget(QWidget):
         # Reconnect signal
         self.profile_combo.currentTextChanged.connect(self.on_profile_selected)
     
+    def refresh_serial_ports(self):
+        """Refresh the list of available serial ports."""
+        if serial is None:
+            # Fallback if pyserial not available
+            current_text = self.uart_port_combo.currentText()
+            self.uart_port_combo.clear()
+            self.uart_port_combo.addItem("/dev/ttyUSB0")
+            self.uart_port_combo.addItem("/dev/ttyACM0")
+            self.uart_port_combo.addItem("/dev/ttyACM1")
+            if current_text:
+                self.uart_port_combo.setCurrentText(current_text)
+            return
+        
+        # Store current selection (get actual device path, not display text)
+        current_port = self._get_uart_port_value()
+        
+        # Get list of available serial ports
+        ports = []
+        try:
+            available_ports = serial.tools.list_ports.comports()
+            for port in available_ports:
+                # Filter for USB serial devices (ttyUSB, ttyACM) and common serial ports
+                if any(port.device.startswith(prefix) for prefix in ['/dev/ttyUSB', '/dev/ttyACM', 'COM']):
+                    # Format: "/dev/ttyUSB0 - USB Serial (description)"
+                    display_text = f"{port.device}"
+                    if port.description:
+                        display_text += f" - {port.description}"
+                    ports.append((port.device, display_text))
+        except Exception as e:
+            print(f"Error detecting serial ports: {e}")
+        
+        # Clear and populate combo box
+        self.uart_port_combo.clear()
+        
+        # Add detected ports
+        for device, display_text in ports:
+            self.uart_port_combo.addItem(display_text, device)
+        
+        # If no ports found, add common defaults
+        if not ports:
+            self.uart_port_combo.addItem("/dev/ttyUSB0")
+            self.uart_port_combo.addItem("/dev/ttyACM0")
+            self.uart_port_combo.addItem("/dev/ttyACM1")
+        
+        # Restore previous selection if it still exists
+        if current_port:
+            # Try to find exact match by device path
+            for i in range(self.uart_port_combo.count()):
+                item_data = self.uart_port_combo.itemData(i)
+                if item_data == current_port:
+                    self.uart_port_combo.setCurrentIndex(i)
+                    return
+            
+            # If not found, try to set as editable text
+            self.uart_port_combo.setCurrentText(current_port)
+        elif ports:
+            # If no previous selection, select first port
+            self.uart_port_combo.setCurrentIndex(0)
+    
+    def _get_uart_port_value(self) -> str:
+        """Get the actual UART port device path from combo box."""
+        # Try to get data (actual device path) first
+        current_index = self.uart_port_combo.currentIndex()
+        if current_index >= 0:
+            item_data = self.uart_port_combo.itemData(current_index)
+            if item_data:
+                return str(item_data)
+        
+        # Fallback to current text
+        text = self.uart_port_combo.currentText()
+        # If text contains " - ", extract just the device path
+        if " - " in text:
+            return text.split(" - ")[0]
+        return text
+    
     def on_profile_selected(self, name: str):
         """Handle profile selection."""
         if not name:
@@ -205,7 +300,26 @@ class DUTProfileWidget(QWidget):
         if profile:
             self.current_profile = profile
             self.name_edit.setText(profile.name)
-            self.uart_port_combo.setCurrentText(profile.uart_port)
+            # Set UART port - try to match by device path or display text
+            port_found = False
+            for i in range(self.uart_port_combo.count()):
+                item_data = self.uart_port_combo.itemData(i)
+                item_text = self.uart_port_combo.itemText(i)
+                # Match by device path (data) or by display text
+                if (item_data and str(item_data) == profile.uart_port) or \
+                   (item_text and profile.uart_port in item_text):
+                    self.uart_port_combo.setCurrentIndex(i)
+                    port_found = True
+                    break
+            if not port_found:
+                # Port from profile doesn't exist in current list - set as editable text
+                # This allows user to see what's saved, but they should update it
+                self.uart_port_combo.setCurrentText(profile.uart_port)
+                # Show a tooltip warning
+                self.uart_port_combo.setToolTip(
+                    f"Warning: Port '{profile.uart_port}' from profile is not currently available. "
+                    f"Select an available port and save the profile to update it."
+                )
             self.baud_spinbox.setValue(profile.uart_baud)
             self.wake_gpio_spinbox.setValue(profile.gpio_wake or 0)
             self.reset_gpio_spinbox.setValue(profile.gpio_reset or 0)
@@ -218,7 +332,12 @@ class DUTProfileWidget(QWidget):
         """Create new profile."""
         self.current_profile = None
         self.name_edit.clear()
-        self.uart_port_combo.setCurrentText("/dev/ttyUSB0")
+        # Refresh ports and set default
+        self.refresh_serial_ports()
+        if self.uart_port_combo.count() > 0:
+            self.uart_port_combo.setCurrentIndex(0)
+        else:
+            self.uart_port_combo.setCurrentText("/dev/ttyUSB0")
         self.baud_spinbox.setValue(115200)
         self.wake_gpio_spinbox.setValue(0)
         self.reset_gpio_spinbox.setValue(0)
@@ -248,10 +367,16 @@ class DUTProfileWidget(QWidget):
             QMessageBox.warning(self, "Error", "Profile name is required")
             return
         
+        # Get the actual port value (device path, not display text)
+        uart_port = self._get_uart_port_value()
+        if not uart_port:
+            QMessageBox.warning(self, "Error", "UART port is required")
+            return
+        
         # Create profile
         profile = DUTProfile(
             name=name,
-            uart_port=self.uart_port_combo.currentText(),
+            uart_port=uart_port,
             uart_baud=self.baud_spinbox.value(),
             gpio_wake=self.wake_gpio_spinbox.value() if self.wake_gpio_spinbox.value() > 0 else None,
             gpio_reset=self.reset_gpio_spinbox.value() if self.reset_gpio_spinbox.value() > 0 else None,
@@ -259,9 +384,11 @@ class DUTProfileWidget(QWidget):
         )
         
         if self.profile_manager.save(profile):
-            QMessageBox.information(self, "Success", f"Profile '{name}' saved")
+            QMessageBox.information(self, "Success", f"Profile '{name}' saved with UART port: {uart_port}")
             self.refresh_profiles()
             self.profile_combo.setCurrentText(name)
+            # Clear tooltip after saving
+            self.uart_port_combo.setToolTip("")
         else:
             QMessageBox.warning(self, "Error", "Failed to save profile")
     
