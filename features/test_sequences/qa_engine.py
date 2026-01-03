@@ -258,8 +258,8 @@ class QAEngine:
             result.message = "Task number not specified"
             return result
         
-        if task_number < 1 or task_number > 10:
-            result.message = f"Invalid task number: {task_number} (must be 1-10)"
+        if task_number < 1 or task_number > 4:
+            result.message = f"Invalid task number: {task_number} (must be 1-4)"
             return result
         
         try:

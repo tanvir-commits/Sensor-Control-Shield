@@ -106,12 +106,11 @@ void BitmapGUI_ShowCurrentBitmap(void)
     
     bitmap_entry_t *bitmap = &bitmap_gallery[current_bitmap_index];
     
-    // Clear screen first
-    ST7789_FillScreen(COLOR_BLACK);
+    // No need to clear screen - new image will overwrite old content directly
+    // This eliminates visible line-by-line blanking and is faster
     
-    // For rotation 3 (landscape inverted), screen is effectively 320x240
-    // Bitmaps are 320x240, so draw at (0,0) - full screen
     // Draw bitmap at top-left corner (full screen fill)
+    // The new image will overwrite the old screen content pixel-by-pixel
     ST7789_DrawImageBytes(0, 0, bitmap->width, bitmap->height, bitmap->data);
 }
 

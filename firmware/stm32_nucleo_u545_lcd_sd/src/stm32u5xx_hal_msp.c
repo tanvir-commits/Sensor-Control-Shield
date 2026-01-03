@@ -1,5 +1,8 @@
 #include "main.h"
 
+/* External DMA handle for SPI1 TX */
+extern DMA_HandleTypeDef hdma_spi1_tx;
+
 /**
  * @brief Initializes the Global MSP (from CubeMX)
  */
@@ -88,6 +91,7 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
         /* Peripheral clock enable */
         __HAL_RCC_SPI1_CLK_ENABLE();
         __HAL_RCC_GPIOA_CLK_ENABLE();
+        __HAL_RCC_GPDMA1_CLK_ENABLE();  // Enable DMA clock
         
         /**SPI1 GPIO Configuration (Arduino Shield pins)
          * PA5     ------> SPI1_SCK  (Arduino D13)
@@ -100,6 +104,35 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
         GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
         GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
         HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+        /* Configure DMA for SPI1 TX */
+        hspi->hdmatx = &hdma_spi1_tx;
+        
+        hdma_spi1_tx.Instance = GPDMA1_Channel0;
+        hdma_spi1_tx.Init.Request = GPDMA1_REQUEST_SPI1_TX;
+        hdma_spi1_tx.Init.BlkHWRequest = DMA_BREQ_SINGLE_BURST;
+        hdma_spi1_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
+        hdma_spi1_tx.Init.SrcInc = DMA_SINC_INCREMENTED;
+        hdma_spi1_tx.Init.DestInc = DMA_DINC_FIXED;
+        hdma_spi1_tx.Init.SrcDataWidth = DMA_SRC_DATAWIDTH_BYTE;
+        hdma_spi1_tx.Init.DestDataWidth = DMA_DEST_DATAWIDTH_BYTE;
+        hdma_spi1_tx.Init.Priority = DMA_HIGH_PRIORITY;
+        hdma_spi1_tx.Init.SrcBurstLength = 8;  // Increased from 1 to 8 for faster transfers
+        hdma_spi1_tx.Init.DestBurstLength = 8;  // Increased from 1 to 8 for faster transfers
+        hdma_spi1_tx.Init.TransferEventMode = DMA_TCEM_BLOCK_TRANSFER;
+        hdma_spi1_tx.Init.Mode = DMA_NORMAL;
+        
+        if (HAL_DMA_Init(&hdma_spi1_tx) != HAL_OK)
+        {
+            Error_Handler();
+        }
+
+        /* Link DMA to SPI */
+        __HAL_LINKDMA(hspi, hdmatx, hdma_spi1_tx);
+
+        /* DMA interrupt init */
+        HAL_NVIC_SetPriority(GPDMA1_Channel0_IRQn, 0, 0);
+        HAL_NVIC_EnableIRQ(GPDMA1_Channel0_IRQn);
     }
 }
 
@@ -119,6 +152,10 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef* hspi)
          * PA7     ------> SPI1_MOSI (Arduino D11)
          */
         HAL_GPIO_DeInit(GPIOA, GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7);
+        
+        /* Deinitialize DMA */
+        HAL_DMA_DeInit(&hdma_spi1_tx);
+        HAL_NVIC_DisableIRQ(GPDMA1_Channel0_IRQn);
     }
 }
 

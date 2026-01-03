@@ -178,8 +178,8 @@ class UARTManager:
         Returns:
             Tuple of (success: bool, response: Optional[str])
         """
-        if task_number < 1 or task_number > 16:
-            return False, "Task number must be 1-16"
+        if task_number < 1 or task_number > 4:
+            return False, "Task number must be 1-4"
         
         return self.send_command(f"TASK {task_number}")
     

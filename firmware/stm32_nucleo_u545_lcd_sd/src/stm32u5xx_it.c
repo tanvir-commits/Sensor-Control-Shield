@@ -6,6 +6,9 @@
 #include "main.h"
 #include "stm32u5xx_it.h"
 
+/* External DMA handle for SPI1 TX */
+extern DMA_HandleTypeDef hdma_spi1_tx;
+
 /* Not needed for minimal LED test */
 
 /**
@@ -80,9 +83,11 @@ void SysTick_Handler(void)
 /**
  * @brief This function handles LPUART1 global interrupt (PC0/PC1).
  */
+extern UART_HandleTypeDef hlpuart1;  // Declare external UART handle
+
 void LPUART1_IRQHandler(void)
 {
-    /* Empty handler - UART not used in minimal LED blink firmware */
+    HAL_UART_IRQHandler(&hlpuart1);
 }
 
 /**
@@ -91,5 +96,21 @@ void LPUART1_IRQHandler(void)
 void USART1_IRQHandler(void)
 {
     /* USART1 is controlled by ST-LINK firmware, not available for user code */
+}
+
+/**
+ * @brief This function handles GPDMA1 Channel 0 interrupt (SPI1 TX DMA).
+ */
+void GPDMA1_Channel0_IRQHandler(void)
+{
+    HAL_DMA_IRQHandler(&hdma_spi1_tx);
+}
+
+/**
+ * @brief This function handles EXTI line 13 interrupt (PC13 - User Button).
+ */
+void EXTI13_IRQHandler(void)
+{
+    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_13);
 }
 

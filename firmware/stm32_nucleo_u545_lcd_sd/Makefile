@@ -27,7 +27,7 @@ BUILD_DIR = build
 # C sources
 C_SOURCES =  \
 src/main.c \
-../qa_agent.c \
+src/qa_agent.c \
 src/sd_card.c \
 src/st7789.c \
 src/syringe_gui.c \
@@ -37,9 +37,9 @@ src/stm32u5xx_it.c \
 src/stm32u5xx_hal_msp.c \
 src/fonts/font16.c \
 src/fonts/font24.c \
-src/gui_images_1.c \
-src/gui_images_2.c \
-src/gui_images_3.c \
+src/gui_images_4.c \
+src/gui_images_8.c \
+src/gui_images_12.c \
 Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_uart.c \
 Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_uart_ex.c \
 Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal.c \

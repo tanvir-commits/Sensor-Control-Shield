@@ -10,6 +10,9 @@ extern SPI_HandleTypeDef hspi1;
 /* Current rotation */
 static uint8_t lcd_rotation = 0;
 
+/* DMA transfer completion flag */
+static volatile bool dma_transfer_complete = false;
+
 /**
  * @brief Set LCD CS pin LOW (select LCD)
  */
@@ -498,6 +501,40 @@ void ST7789_SetBacklightBrightness(uint8_t percent)
 }
 
 /**
+ * @brief Turn LCD display off (display off + backlight off)
+ */
+__attribute__((used)) void ST7789_DisplayOff(void)
+{
+    // Turn off backlight
+    ST7789_SetBacklightBrightness(0);
+    
+    // Send Display Off command
+    ST7789_WriteCommand(ST7789_DISPOFF);
+    HAL_Delay(10);
+    
+    // Send Sleep In command to reduce power further
+    ST7789_WriteCommand(ST7789_SLPIN);
+    HAL_Delay(10);
+}
+
+/**
+ * @brief Turn LCD display on (display on + backlight on)
+ */
+__attribute__((used)) void ST7789_DisplayOn(void)
+{
+    // Send Sleep Out command
+    ST7789_WriteCommand(ST7789_SLPOUT);
+    HAL_Delay(120);  // Wait for display to stabilize
+    
+    // Send Display On command
+    ST7789_WriteCommand(ST7789_DISPON);
+    HAL_Delay(20);
+    
+    // Turn on backlight to default (100%)
+    ST7789_SetBacklightBrightness(100);
+}
+
+/**
  * @brief Draw a character using font data (optimized - draws row by row)
  */
 void ST7789_DrawChar(int16_t x, int16_t y, char c, uint16_t color, uint16_t bg, const sFONT *font)
@@ -625,6 +662,16 @@ void ST7789_DrawImage(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t
  * @param h Image height in pixels
  * @param image Pointer to RGB565 byte array (little-endian: LSB, MSB per pixel, row-major order)
  */
+/**
+ * @brief DMA transfer complete callback
+ */
+void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+    if (hspi->Instance == SPI1) {
+        dma_transfer_complete = true;
+    }
+}
+
 void ST7789_DrawImageBytes(int16_t x, int16_t y, int16_t w, int16_t h, const uint8_t *image)
 {
     if (image == NULL) {
@@ -639,54 +686,59 @@ void ST7789_DrawImageBytes(int16_t x, int16_t y, int16_t w, int16_t h, const uin
     // Set address window (leaves CS low and DC high after RAMWR)
     ST7789_SetAddrWindow(x, y, x + w - 1, y + h - 1);
     
-    // Send pixels in large chunks for maximum performance
+    // Prepare entire image buffer for DMA transfer
     uint32_t total_pixels = (uint32_t)w * h;
-    const uint32_t chunk_size = 10000;  // pixels per chunk (20KB) - very large chunks for speed
+    uint32_t total_bytes = total_pixels * 2;
     
-    // Static buffer to avoid stack allocation (reused across calls)
-    static uint8_t chunk_buffer[10000 * 2];  // 20KB static buffer
+    // Static buffer for entire image (max 240x320 = 153,600 bytes)
+    static uint8_t dma_buffer[240 * 320 * 2];  // Full screen buffer
     
-    for (uint32_t i = 0; i < total_pixels; i += chunk_size) {
-        uint32_t remaining = total_pixels - i;
-        uint32_t chunk = (remaining > chunk_size) ? chunk_size : remaining;
-        uint32_t chunk_bytes = chunk * 2;
+    // Optimized byte reordering: process 4 pixels at a time
+    const uint8_t *src = image;
+    uint8_t *dst = dma_buffer;
+    uint32_t pixels_processed = 0;
+    
+    while (pixels_processed + 4 <= total_pixels) {
+        // Process 4 pixels (8 bytes) at once
+        dst[0] = src[1];  // Pixel 0 MSB
+        dst[1] = src[0];  // Pixel 0 LSB
+        dst[2] = src[3];  // Pixel 1 MSB
+        dst[3] = src[2];  // Pixel 1 LSB
+        dst[4] = src[5];  // Pixel 2 MSB
+        dst[5] = src[4];  // Pixel 2 LSB
+        dst[6] = src[7];  // Pixel 3 MSB
+        dst[7] = src[6];  // Pixel 3 LSB
+        src += 8;
+        dst += 8;
+        pixels_processed += 4;
+    }
+    
+    // Handle remaining pixels
+    while (pixels_processed < total_pixels) {
+        dst[0] = src[1];  // MSB
+        dst[1] = src[0];  // LSB
+        src += 2;
+        dst += 2;
+        pixels_processed++;
+    }
+    
+    // HAL_SPI_Transmit has uint16_t Size parameter (max 65535 bytes)
+    // We need to send in chunks of max 65535 bytes
+    const uint32_t max_chunk_size = 65535;  // Maximum for uint16_t
+    
+    uint32_t bytes_sent = 0;
+    while (bytes_sent < total_bytes) {
+        uint32_t remaining = total_bytes - bytes_sent;
+        uint16_t chunk_size = (remaining > max_chunk_size) ? max_chunk_size : (uint16_t)remaining;
         
-        // Optimized byte reordering: process 2 bytes at a time
-        const uint8_t *src = &image[i * 2];
-        uint8_t *dst = chunk_buffer;
-        
-        // Unroll loop for better performance - process 4 pixels at a time
-        uint32_t pixels_processed = 0;
-        while (pixels_processed + 4 <= chunk) {
-            // Process 4 pixels (8 bytes) at once
-            dst[0] = src[1];  // Pixel 0 MSB
-            dst[1] = src[0];  // Pixel 0 LSB
-            dst[2] = src[3];  // Pixel 1 MSB
-            dst[3] = src[2];  // Pixel 1 LSB
-            dst[4] = src[5];  // Pixel 2 MSB
-            dst[5] = src[4];  // Pixel 2 LSB
-            dst[6] = src[7];  // Pixel 3 MSB
-            dst[7] = src[6];  // Pixel 3 LSB
-            src += 8;
-            dst += 8;
-            pixels_processed += 4;
-        }
-        
-        // Handle remaining pixels
-        while (pixels_processed < chunk) {
-            dst[0] = src[1];  // MSB
-            dst[1] = src[0];  // LSB
-            src += 2;
-            dst += 2;
-            pixels_processed++;
-        }
-        
-        // Send entire chunk at once
-        HAL_SPI_Transmit(&hspi1, chunk_buffer, chunk_bytes, 5000);
+        // Send chunk (CS stays low during entire transfer)
+        HAL_SPI_Transmit(&hspi1, &dma_buffer[bytes_sent], chunk_size, 10000);
+        bytes_sent += chunk_size;
     }
     
     // Raise CS to complete the transaction
     ST7789_CS_High();
-    // Removed delay - not needed for completion
+    // Small delay to ensure CS signal is stable
+    HAL_Delay(1);
 }
 

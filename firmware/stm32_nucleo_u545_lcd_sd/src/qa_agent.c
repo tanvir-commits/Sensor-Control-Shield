@@ -4,14 +4,20 @@
  */
 
 #include "qa_agent.h"
+#include "st7789.h"
+#include "stm32u5xx_hal_uart_ex.h"
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
 
+/* External function declarations */
+extern void SystemClock_Config(void);
+extern void SystemCoreClockUpdate(void);
+
 /* Private constants */
 #define QA_MAX_CMD_LEN 32
 #define QA_MAX_MSG_LEN 64
-#define QA_NUM_TASKS 13
+#define QA_NUM_TASKS 4
 
 /* Private variables */
 static UART_HandleTypeDef *s_huart = NULL;
@@ -159,7 +165,7 @@ static void qa_process_command(const char *cmd)
     }
     cmd_upper[QA_MAX_CMD_LEN] = '\0';
     
-    // Parse TASK command: "TASK 1" through "TASK 10"
+    // Parse TASK command: "TASK 1" through "TASK 4"
     if (strncmp(cmd_upper, "TASK ", 5) == 0) {
         int task_num = 0;
         if (sscanf(cmd + 5, "%d", &task_num) == 1) {
@@ -263,21 +269,97 @@ static void qa_enter_sleep(qa_sleep_mode_t mode)
             
         case QA_SLEEP_LIGHT:
             // Light sleep: Stop 0 with low-power regulator
-            // Note: Configure GPIOs for low power before sleep (user's responsibility)
+            // Configure UART wake-up before entering sleep
+            if (s_huart != NULL && s_huart->Instance == LPUART1) {
+                // Configure UART to wake on RX data
+                UART_WakeUpTypeDef wakeup_config;
+                wakeup_config.WakeUpEvent = UART_WAKEUP_ON_READDATA_NONEMPTY;
+                HAL_UARTEx_StopModeWakeUpSourceConfig(s_huart, wakeup_config);
+                HAL_UARTEx_EnableStopMode(s_huart);
+                
+                // Enable RX interrupt (RXNE) for wake-up
+                __HAL_UART_ENABLE_IT(s_huart, UART_IT_RXNE);
+                
+                // Enable UART interrupt in NVIC
+                HAL_NVIC_SetPriority(LPUART1_IRQn, 0, 0);
+                HAL_NVIC_EnableIRQ(LPUART1_IRQn);
+            }
+            
             HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
-            // After wake: HAL automatically reconfigures system clock
-            // User may need to reconfigure peripherals if needed
-            // Uncomment if you have a custom clock config function:
-            // SystemClock_Config();
+            
+            // After wake: Reconfigure system clock and UART
+            SystemClock_Config();
+            if (s_huart != NULL && s_huart->Instance == LPUART1) {
+                HAL_UARTEx_DisableStopMode(s_huart);
+                // Disable RX interrupt that was used for wake-up
+                __HAL_UART_DISABLE_IT(s_huart, UART_IT_RXNE);
+                // De-initialize UART first
+                HAL_UART_DeInit(s_huart);
+                // Small delay to ensure de-init completes
+                HAL_Delay(10);
+                // Re-initialize UART after clock reconfiguration
+                extern HAL_StatusTypeDef MX_LPUART1_UART_Init(void);
+                HAL_StatusTypeDef uart_status = MX_LPUART1_UART_Init();
+                if (uart_status != HAL_OK) {
+                    // UART init failed - try again
+                    HAL_Delay(10);
+                    MX_LPUART1_UART_Init();
+                }
+                // Small delay for UART to stabilize
+                HAL_Delay(10);
+            }
             break;
             
         case QA_SLEEP_DEEP:
             // Deep sleep: Stop 2 with main regulator
+            // Configure button (PC13) as EXTI wake-up source
+            // Button is pull-down, so configure for rising edge (button press = HIGH)
+            GPIO_InitTypeDef GPIO_InitStruct = {0};
+            GPIO_InitStruct.Pin = GPIO_PIN_13;
+            GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;  // Interrupt on rising edge (button press)
+            GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+            GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+            HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+            
+            // Enable EXTI line 13 interrupt in NVIC
+            HAL_NVIC_SetPriority(EXTI13_IRQn, 0, 0);
+            HAL_NVIC_EnableIRQ(EXTI13_IRQn);
+            
             HAL_PWR_EnterSTOPMode(PWR_MAINREGULATOR_ON, PWR_STOPENTRY_WFI);
-            // After wake: HAL automatically reconfigures system clock
-            // User may need to reconfigure peripherals if needed
-            // Uncomment if you have a custom clock config function:
-            // SystemClock_Config();
+            
+            // After wake: Reconfigure system clock and restore button to GPIO mode
+            SystemClock_Config();
+            
+            // Update SystemCoreClock variable after clock reconfiguration
+            SystemCoreClockUpdate();
+            
+            // Reconfigure button back to GPIO input mode (not EXTI)
+            GPIO_InitStruct.Pin = GPIO_PIN_13;
+            GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+            GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+            GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+            HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+            
+            // Disable EXTI interrupt
+            HAL_NVIC_DisableIRQ(EXTI13_IRQn);
+            
+            // Re-initialize UART after clock reconfiguration
+            if (s_huart != NULL && s_huart->Instance == LPUART1) {
+                // De-initialize UART first
+                HAL_UART_DeInit(s_huart);
+                // Small delay to ensure de-init completes
+                HAL_Delay(10);
+                // Re-initialize UART
+                extern HAL_StatusTypeDef MX_LPUART1_UART_Init(void);
+                HAL_StatusTypeDef uart_status = MX_LPUART1_UART_Init();
+                if (uart_status != HAL_OK) {
+                    // UART init failed - try again
+                    HAL_Delay(10);
+                    MX_LPUART1_UART_Init();
+                }
+                // Small delay for UART to stabilize
+                HAL_Delay(10);
+            }
             break;
             
         case QA_SLEEP_SHUTDOWN:

@@ -77,7 +77,21 @@ class MainWindow(QMainWindow):
         title = f"DeviceOps [{self.branch}]"
         self.setWindowTitle(title)
         self.setMinimumSize(900, 850)
-        self.resize(1000, 1100)  # Start taller - increased height
+        
+        # Set initial size, but respect screen bounds
+        initial_width = 1000
+        initial_height = 1100
+        
+        # If screen is available, constrain to screen size
+        if QApplication.instance() and QApplication.instance().primaryScreen():
+            screen_geometry = QApplication.instance().primaryScreen().availableGeometry()
+            max_width = screen_geometry.width()
+            max_height = screen_geometry.height()
+            # Use smaller of desired size or available screen space
+            initial_width = min(initial_width, max_width - 50)  # Leave 50px margin
+            initial_height = min(initial_height, max_height - 50)  # Leave 50px margin
+        
+        self.resize(initial_width, initial_height)
         
         # Apply modern styling
         self.setStyleSheet("""
@@ -172,6 +186,11 @@ class MainWindow(QMainWindow):
             
             self.tab_widget.setTabsClosable(True)
             self.tab_widget.tabCloseRequested.connect(self.on_tab_close_requested)
+            
+            # Set size policy on tab widget to prevent vertical overflow
+            from PySide6.QtWidgets import QSizePolicy
+            self.tab_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+            
             self.setCentralWidget(self.tab_widget)
         else:
             # No device system - use single widget (backward compatible)
@@ -226,10 +245,31 @@ class MainWindow(QMainWindow):
         
         content_layout.addLayout(bus_row)
         
+        # Add stretch at the end for proper spacing, but limit widget height
         content_layout.addStretch()
         
         main_layout.addLayout(content_layout)
         widget.setLayout(main_layout)
+        
+        # Set size policy to prevent vertical expansion beyond screen
+        from PySide6.QtWidgets import QSizePolicy
+        widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        
+        # Calculate maximum height based on screen size
+        # This prevents overflow while allowing proper spacing
+        if self.screen():
+            try:
+                screen_height = self.screen().availableGeometry().height()
+                # Reserve space for window chrome, menu bar, status bar, etc. (about 150px)
+                max_height = screen_height - 150
+                widget.setMaximumHeight(max_height)
+            except:
+                # Fallback if screen info not available
+                widget.setMaximumHeight(800)
+        else:
+            # Fallback if screen not yet available
+            widget.setMaximumHeight(800)
+        
         return widget
     
     def update_all(self):

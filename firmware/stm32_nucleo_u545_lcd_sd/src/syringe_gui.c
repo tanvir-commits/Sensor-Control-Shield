@@ -29,26 +29,26 @@ void GUI_Init(void)
     // Initialize bitmap GUI system
     BitmapGUI_Init();
     
-    // Register bitmaps
+    // Register bitmaps (order: 8, 12, 4)
     BitmapGUI_RegisterBitmap(
-        gImage_1,
-        GIMAGE_1_WIDTH,
-        GIMAGE_1_HEIGHT,
-        "Image 1"
+        gImage_8,
+        GIMAGE_8_WIDTH,
+        GIMAGE_8_HEIGHT,
+        "Image 8"
     );
     
     BitmapGUI_RegisterBitmap(
-        gImage_2,
-        GIMAGE_2_WIDTH,
-        GIMAGE_2_HEIGHT,
-        "Image 2"
+        gImage_12,
+        GIMAGE_12_WIDTH,
+        GIMAGE_12_HEIGHT,
+        "Image 12"
     );
     
     BitmapGUI_RegisterBitmap(
-        gImage_3,
-        GIMAGE_3_WIDTH,
-        GIMAGE_3_HEIGHT,
-        "Image 3"
+        gImage_4,
+        GIMAGE_4_WIDTH,
+        GIMAGE_4_HEIGHT,
+        "Image 4"
     );
 }
 
@@ -177,11 +177,11 @@ void GUI_DrawSyringe(int16_t x, int16_t y, uint8_t fill_percent)
  */
 static void GUI_DrawDeliveryStatus(void)
 {
-    // Draw background bitmap image (using Image 1)
+    // Draw background bitmap image (using Image 8)
     ST7789_DrawImageBytes(0, 0, 
-                         GIMAGE_1_WIDTH, 
-                         GIMAGE_1_HEIGHT, 
-                         gImage_1);
+                         GIMAGE_8_WIDTH, 
+                         GIMAGE_8_HEIGHT, 
+                         gImage_8);
 }
 
 /**
@@ -189,11 +189,11 @@ static void GUI_DrawDeliveryStatus(void)
  */
 static void GUI_DrawCassetteLow(void)
 {
-    // Draw background bitmap image (using Image 2)
+    // Draw background bitmap image (using Image 12)
     ST7789_DrawImageBytes(0, 0, 
-                         GIMAGE_2_WIDTH, 
-                         GIMAGE_2_HEIGHT, 
-                         gImage_2);
+                         GIMAGE_12_WIDTH, 
+                         GIMAGE_12_HEIGHT, 
+                         gImage_12);
     
     // Overlay dynamic text if needed (e.g., for changing values)
     // The bitmap already contains the static layout

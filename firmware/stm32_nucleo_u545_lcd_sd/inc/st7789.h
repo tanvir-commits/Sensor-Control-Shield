@@ -96,6 +96,8 @@ void ST7789_DrawImage(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t
 void ST7789_DrawImageBytes(int16_t x, int16_t y, int16_t w, int16_t h, const uint8_t *image);
 void ST7789_SetBacklight(bool on);
 void ST7789_SetBacklightBrightness(uint8_t percent);
+void ST7789_DisplayOff(void);
+void ST7789_DisplayOn(void);
 
 /* Internal Functions */
 void ST7789_WriteCommand(uint8_t cmd);

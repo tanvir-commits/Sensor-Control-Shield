@@ -3,7 +3,8 @@
 from PySide6.QtWidgets import (QGroupBox, QVBoxLayout, QHBoxLayout, QPushButton,
                                QLabel, QTableWidget, QTableWidgetItem, QComboBox,
                                QSpinBox, QLineEdit, QTextEdit, QTabWidget, QWidget,
-                               QHeaderView, QMessageBox, QFileDialog, QCheckBox, QSizePolicy)
+                               QHeaderView, QMessageBox, QFileDialog, QCheckBox, QSizePolicy,
+                               QScrollArea)
 from PySide6.QtCore import Qt, Signal, QThread, QEvent
 from PySide6.QtGui import QFont
 from typing import Dict, List, Optional
@@ -147,11 +148,11 @@ class DUTProfileWidget(QWidget):
         details_layout.addLayout(gpio_layout)
         
         # Task descriptions
-        task_group = QGroupBox("Task Descriptions (1-10)")
+        task_group = QGroupBox("Task Descriptions (1-4)")
         task_layout = QVBoxLayout()
         
         self.task_edits = {}
-        for i in range(1, 11):
+        for i in range(1, 5):
             task_layout_item = QHBoxLayout()
             task_layout_item.addWidget(QLabel(f"Task {i}:"))
             task_edit = QLineEdit()
@@ -324,7 +325,7 @@ class DUTProfileWidget(QWidget):
             self.wake_gpio_spinbox.setValue(profile.gpio_wake or 0)
             self.reset_gpio_spinbox.setValue(profile.gpio_reset or 0)
             
-            for i in range(1, 11):
+            for i in range(1, 5):
                 task_desc = profile.tasks.get(str(i), "")
                 self.task_edits[i].setText(task_desc)
     
@@ -341,7 +342,7 @@ class DUTProfileWidget(QWidget):
         self.baud_spinbox.setValue(115200)
         self.wake_gpio_spinbox.setValue(0)
         self.reset_gpio_spinbox.setValue(0)
-        for i in range(1, 11):
+        for i in range(1, 5):
             self.task_edits[i].clear()
     
     def on_delete_profile(self):
@@ -446,6 +447,16 @@ class SequenceBuilderWidget(QWidget):
     
     def setup_ui(self):
         """Set up sequence builder UI."""
+        # Create scroll area to prevent vertical overflow
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        
+        # Create content widget
+        content_widget = QWidget()
+        content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         layout = QVBoxLayout()
         layout.setSpacing(12)
         layout.setContentsMargins(15, 10, 15, 15)
@@ -540,13 +551,15 @@ class SequenceBuilderWidget(QWidget):
         layout.addWidget(steps_table_label)
         
         self.steps_table = QTableWidget()
-        self.steps_table.setColumnCount(3)
-        self.steps_table.setHorizontalHeaderLabels(["#", "Type", "Parameters"])
+        self.steps_table.setColumnCount(4)
+        self.steps_table.setHorizontalHeaderLabels(["#", "Type", "Parameters", "Status"])
         self.steps_table.setToolTip("Parameters shown here are read-only. To modify a step, delete it and add a new one with different parameters.")
         self.steps_table.horizontalHeader().setStretchLastSection(True)
         self.steps_table.setAlternatingRowColors(True)
         self.steps_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.steps_table.setSelectionMode(QTableWidget.ExtendedSelection)  # Allow multiple selection
+        self.steps_table.setSelectionMode(QTableWidget.SingleSelection)  # Single selection for step execution
+        # Set maximum height to prevent overflow (about 10 rows visible)
+        self.steps_table.setMaximumHeight(300)
         layout.addWidget(self.steps_table)
         
         # Control buttons
@@ -570,6 +583,34 @@ class SequenceBuilderWidget(QWidget):
         save_button.clicked.connect(self.on_save_sequence)
         control_layout.addWidget(save_button)
         
+        # Step execution controls (new section)
+        exec_group = QGroupBox("Test Individual Steps")
+        exec_layout = QVBoxLayout()
+        
+        exec_button_layout = QHBoxLayout()
+        
+        self.run_selected_button = QPushButton("Run Selected Step")
+        self.run_selected_button.clicked.connect(self.on_run_selected_step)
+        self.run_selected_button.setEnabled(False)  # Disabled until step selected
+        exec_button_layout.addWidget(self.run_selected_button)
+        
+        self.run_next_button = QPushButton("Run & Advance")
+        self.run_next_button.clicked.connect(self.on_run_and_advance)
+        self.run_next_button.setEnabled(False)
+        exec_button_layout.addWidget(self.run_next_button)
+        
+        exec_button_layout.addStretch()
+        
+        exec_layout.addLayout(exec_button_layout)
+        
+        # Status label for step execution
+        self.step_exec_status = QLabel("No step selected")
+        self.step_exec_status.setStyleSheet("color: #666; font-style: italic;")
+        exec_layout.addWidget(self.step_exec_status)
+        
+        exec_group.setLayout(exec_layout)
+        layout.addWidget(exec_group)
+        
         load_button = QPushButton("Load Sequence")
         load_button.clicked.connect(self.on_load_sequence)
         control_layout.addWidget(load_button)
@@ -580,8 +621,22 @@ class SequenceBuilderWidget(QWidget):
         
         layout.addLayout(control_layout)
         
-        layout.addStretch()
-        self.setLayout(layout)
+        # Don't add stretch - wrap in scroll area instead
+        # Set content widget layout
+        content_widget.setLayout(layout)
+        scroll.setWidget(content_widget)
+        
+        # Set scroll area as main layout
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(scroll)
+        self.setLayout(main_layout)
+        
+        # Set size policy to prevent vertical expansion
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        
+        # Connect table selection to enable/disable buttons
+        self.steps_table.selectionModel().selectionChanged.connect(self.on_step_selection_changed)
         
         self.on_step_type_changed("Wake")  # Initialize params
     
@@ -663,10 +718,10 @@ class SequenceBuilderWidget(QWidget):
         elif step_type == "Task":
             # Task Number row
             task_layout = QHBoxLayout()
-            task_layout.addWidget(QLabel("Task Number (1-10):"))
+            task_layout.addWidget(QLabel("Task Number (1-4):"))
             self.task_number_spinbox = QSpinBox()
             self.task_number_spinbox.setMinimum(1)
-            self.task_number_spinbox.setMaximum(10)
+            self.task_number_spinbox.setMaximum(4)
             task_layout.addWidget(self.task_number_spinbox)
             task_layout.addStretch()
             # Insert before spacer
@@ -911,6 +966,11 @@ class SequenceBuilderWidget(QWidget):
             params_item = QTableWidgetItem(params_str)
             params_item.setFlags(params_item.flags() & ~Qt.ItemIsEditable)
             self.steps_table.setItem(i, 2, params_item)
+            
+            # Status column (initially empty, will be filled after execution)
+            status_item = QTableWidgetItem("")
+            status_item.setFlags(status_item.flags() & ~Qt.ItemIsEditable)
+            self.steps_table.setItem(i, 3, status_item)
         
         # Don't resize columns automatically - this triggers parent layout recalculation
         # that causes the QGroupBox to shrink. User can manually resize columns if needed.
@@ -919,7 +979,7 @@ class SequenceBuilderWidget(QWidget):
         """Get task description from current DUT profile.
         
         Args:
-            task_number: Task number (1-10)
+            task_number: Task number (1-4)
         
         Returns:
             Task description or empty string if not found
@@ -1026,6 +1086,180 @@ class SequenceBuilderWidget(QWidget):
     def get_current_sequence(self) -> Optional[Sequence]:
         """Get current sequence."""
         return self.current_sequence
+    
+    def on_step_selection_changed(self, selected, deselected):
+        """Handle step selection change."""
+        selected_rows = self.steps_table.selectionModel().selectedRows()
+        has_selection = len(selected_rows) == 1  # Only enable if exactly one row selected
+        
+        self.run_selected_button.setEnabled(has_selection and self.current_sequence is not None)
+        self.run_next_button.setEnabled(has_selection and self.current_sequence is not None)
+        
+        if has_selection:
+            row = selected_rows[0].row()
+            step_num = row + 1
+            self.step_exec_status.setText(f"Selected: Step {step_num}")
+        else:
+            self.step_exec_status.setText("No step selected")
+    
+    def on_run_selected_step(self):
+        """Run the currently selected step (stays on same step)."""
+        selected_rows = self.steps_table.selectionModel().selectedRows()
+        if not selected_rows or len(selected_rows) != 1:
+            QMessageBox.warning(self, "Error", "Select exactly one step to run")
+            return
+        
+        if not self.current_sequence:
+            QMessageBox.warning(self, "Error", "No sequence loaded")
+            return
+        
+        row = selected_rows[0].row()
+        if row >= len(self.current_sequence.steps):
+            QMessageBox.warning(self, "Error", "Invalid step index")
+            return
+        
+        # Get DUT profile
+        profile_name = self.profile_combo.currentText() if hasattr(self, 'profile_combo') else None
+        if not profile_name or profile_name.startswith("(No profiles"):
+            QMessageBox.warning(self, "Error", "Select a DUT profile first")
+            return
+        
+        from features.test_sequences.dut_profile import DUTProfileManager
+        profile_manager = DUTProfileManager()
+        profile = profile_manager.get_profile(profile_name)
+        if not profile:
+            QMessageBox.warning(self, "Error", "Profile not found")
+            return
+        
+        # Execute the step (stays on same row)
+        step = self.current_sequence.steps[row]
+        self._execute_single_step(step, profile, row)
+    
+    def on_run_and_advance(self):
+        """Run the currently selected step and automatically advance to next step."""
+        selected_rows = self.steps_table.selectionModel().selectedRows()
+        if not selected_rows or len(selected_rows) != 1:
+            QMessageBox.warning(self, "Error", "Select exactly one step to run")
+            return
+        
+        if not self.current_sequence:
+            QMessageBox.warning(self, "Error", "No sequence loaded")
+            return
+        
+        row = selected_rows[0].row()
+        if row >= len(self.current_sequence.steps):
+            QMessageBox.warning(self, "Error", "Invalid step index")
+            return
+        
+        # Get DUT profile
+        profile_name = self.profile_combo.currentText() if hasattr(self, 'profile_combo') else None
+        if not profile_name or profile_name.startswith("(No profiles"):
+            QMessageBox.warning(self, "Error", "Select a DUT profile first")
+            return
+        
+        from features.test_sequences.dut_profile import DUTProfileManager
+        profile_manager = DUTProfileManager()
+        profile = profile_manager.get_profile(profile_name)
+        if not profile:
+            QMessageBox.warning(self, "Error", "Profile not found")
+            return
+        
+        # Execute the current step
+        step = self.current_sequence.steps[row]
+        self._execute_single_step(step, profile, row)
+        
+        # Automatically advance to next step (if exists)
+        next_row = row + 1
+        if next_row < len(self.current_sequence.steps):
+            self.steps_table.clearSelection()
+            self.steps_table.selectRow(next_row)
+            # Scroll to make sure next step is visible
+            self.steps_table.scrollToItem(
+                self.steps_table.item(next_row, 0),
+                QTableWidget.EnsureVisible
+            )
+        else:
+            QMessageBox.information(self, "Info", "Reached end of sequence")
+    
+    def _execute_single_step(self, step, profile, step_index):
+        """Execute a single step and show result.
+        
+        Args:
+            step: SequenceStep to execute
+            profile: DUTProfile to use
+            step_index: Index of step in sequence (for display)
+        """
+        from features.test_sequences.qa_engine import QAEngine
+        from hardware.uart_manager import UARTManager
+        from hardware.gpio_manager import GPIOManager
+        
+        # Create engine instance (or reuse if available)
+        uart = UARTManager()
+        gpio = GPIOManager()
+        engine = QAEngine(uart, gpio)
+        
+        # Open UART connection (like execution tab does)
+        if not uart.open(profile.uart_port, profile.uart_baud):
+            error_msg = f"Failed to open UART port {profile.uart_port}. Check permissions and that no other program is using it."
+            self.step_exec_status.setText(f"✗ Error: {error_msg}")
+            self.step_exec_status.setStyleSheet("color: #cc0000; font-weight: bold;")
+            QMessageBox.warning(self, "UART Error", error_msg)
+            return
+        
+        # Set current sequence on engine (needed for _execute_step to work)
+        # Create a dummy sequence with just this step for execution context
+        from features.test_sequences.sequence_builder import Sequence
+        dummy_sequence = Sequence(name="Single Step Execution", steps=[step])
+        engine.current_sequence = dummy_sequence
+        engine.step_index = 0
+        
+        # Update status
+        self.step_exec_status.setText(f"Executing step {step_index + 1}...")
+        self.step_exec_status.setStyleSheet("color: #0066cc; font-weight: bold;")
+        
+        try:
+            # Execute step
+            step_result = engine._execute_step(step, profile)
+            
+            # Show result in status label
+            if step_result.success:
+                status_text = f"✓ Step {step_index + 1} PASSED: {step_result.message}"
+                self.step_exec_status.setStyleSheet("color: #006600; font-weight: bold;")
+            else:
+                status_text = f"✗ Step {step_index + 1} FAILED: {step_result.message}"
+                self.step_exec_status.setStyleSheet("color: #cc0000; font-weight: bold;")
+            
+            self.step_exec_status.setText(status_text)
+            
+            # Update status column in table
+            status_display = f"✓ PASS ({step_result.duration:.3f}s)" if step_result.success else f"✗ FAIL: {step_result.message}"
+            status_item = QTableWidgetItem(status_display)
+            status_item.setFlags(status_item.flags() & ~Qt.ItemIsEditable)
+            if step_result.success:
+                status_item.setForeground(Qt.darkGreen)
+            else:
+                status_item.setForeground(Qt.red)
+            self.steps_table.setItem(step_index, 3, status_item)
+            
+            # Only show dialog for failures
+            if not step_result.success:
+                QMessageBox.warning(
+                    self, 
+                    "Step Execution Failed",
+                    f"Step {step_index + 1} ({step.type.value})\n\n"
+                    f"Status: FAILED\n"
+                    f"Message: {step_result.message}\n"
+                    f"Duration: {step_result.duration:.3f}s"
+                )
+            
+        except Exception as e:
+            error_msg = f"Error executing step: {e}"
+            self.step_exec_status.setText(f"✗ Error: {error_msg}")
+            self.step_exec_status.setStyleSheet("color: #cc0000; font-weight: bold;")
+            QMessageBox.warning(self, "Execution Error", error_msg)
+        finally:
+            # Clean up (don't close UART - might be reused)
+            pass
 
 
 class ExecutionWidget(QWidget):
@@ -1450,4 +1684,23 @@ class QATestSequencesSection(QGroupBox):
         
         layout.addWidget(self.tab_widget)
         self.setLayout(layout)
+        
+        # Set size policy to prevent vertical expansion beyond screen
+        # Use Maximum instead of Preferred to respect parent constraints
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        
+        # Calculate maximum height based on screen size
+        # This ensures the widget doesn't overflow even on smaller screens
+        if self.window() and hasattr(self.window(), 'screen') and self.window().screen():
+            try:
+                screen_height = self.window().screen().availableGeometry().height()
+                # Reserve space for window chrome, menu bar, status bar, etc. (about 150px)
+                max_height = screen_height - 150
+                self.setMaximumHeight(max_height)
+            except:
+                # Fallback if screen info not available
+                self.setMaximumHeight(800)
+        else:
+            # Fallback if window not yet shown
+            self.setMaximumHeight(800)
 
