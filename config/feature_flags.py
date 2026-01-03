@@ -11,7 +11,7 @@ ENABLE_POWER_PROFILER = True
 ENABLE_TEST_SEQUENCES = True
 
 # Smart Suggestions feature
-ENABLE_SMART_SUGGESTIONS = False
+ENABLE_SMART_SUGGESTIONS = True
 
 # Dashboard feature (future)
 ENABLE_DASHBOARD = False

@@ -2,7 +2,7 @@
 
 import sys
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                               QApplication, QTabWidget)
+                               QApplication, QTabWidget, QMenuBar, QMenu)
 from PySide6.QtCore import QTimer, Qt
 
 from .status_bar import StatusBar
@@ -47,6 +47,21 @@ try:
 except Exception as e:
     TEST_SEQUENCES_AVAILABLE = False
 
+# Optional smart suggestions feature
+try:
+    from config.feature_flags import ENABLE_SMART_SUGGESTIONS
+    if ENABLE_SMART_SUGGESTIONS:
+        try:
+            from features.smart_suggestions.ui.suggestions_dialog import SuggestionsDialog
+            SMART_SUGGESTIONS_AVAILABLE = True
+        except Exception as e:
+            print(f"Smart suggestions UI not available: {e}")
+            SMART_SUGGESTIONS_AVAILABLE = False
+    else:
+        SMART_SUGGESTIONS_AVAILABLE = False
+except Exception as e:
+    SMART_SUGGESTIONS_AVAILABLE = False
+
 
 class MainWindow(QMainWindow):
     """Main application window."""
@@ -89,6 +104,9 @@ class MainWindow(QMainWindow):
         
         # Setup UI
         self.setup_ui()
+        
+        # Setup menu bar
+        self.setup_menu_bar()
         
         # Setup update timer (10Hz = 100ms)
         self.update_timer = QTimer()
@@ -384,4 +402,28 @@ class MainWindow(QMainWindow):
         
         # Remove tab
         self.tab_widget.removeTab(index)
+    
+    def setup_menu_bar(self):
+        """Set up the menu bar."""
+        menu_bar = QMenuBar(self)
+        self.setMenuBar(menu_bar)
+        
+        # Tools menu
+        if SMART_SUGGESTIONS_AVAILABLE:
+            tools_menu = menu_bar.addMenu("Tools")
+            show_suggestions_action = tools_menu.addAction("Show App Suggestions...")
+            show_suggestions_action.triggered.connect(self.show_app_suggestions)
+    
+    def show_app_suggestions(self):
+        """Show the app suggestions dialog."""
+        if not SMART_SUGGESTIONS_AVAILABLE:
+            return
+        
+        try:
+            dialog = SuggestionsDialog(self.hardware, parent=self)
+            dialog.exec()
+        except Exception as e:
+            import traceback
+            print(f"Error showing app suggestions: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
 
