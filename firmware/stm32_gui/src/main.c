@@ -235,6 +235,16 @@ int main(void)
             debug_printf("[MAIN] Switching to Screen3\r\n");
             lv_screen_load(ui_Screen3);
             current_screen = 4;
+        } else if (current_screen == 4 && current_time >= screen2_detected_end + 3000) {
+            /* Loop back to Screen1 after Screen3 */
+            debug_printf("[MAIN] Looping back to Screen1\r\n");
+            lv_screen_load(ui_Screen1);
+            current_screen = 1;
+            /* Reset timing for next cycle */
+            start_time = current_time;
+            screen1_end = start_time + 3000;
+            screen2_end = screen1_end + 3000;
+            screen2_detected_end = screen2_end + 3000;
         }
         
         loop_count++;
