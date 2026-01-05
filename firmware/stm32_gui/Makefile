@@ -198,12 +198,15 @@ Drivers/STM32U5xx_HAL_Driver/Src/stm32u5xx_hal_spi_ex.c
 ifneq ($(wildcard ui/ui.c),)
 C_SOURCES += ui/ui.c \
 ui/ui_helpers.c \
+ui/ui_styling.c \
 ui/components/ui_comp_hook.c \
 ui/components/ui_comp.c \
-ui/components/ui_comp_spinner1.c \
+ui/screens/ui_Screen1.c \
 ui/screens/ui_Screen2.c \
 ui/screens/ui_Screen3.c \
-ui/images/ui_img_4_png.c
+ui/images/ui_img_12_png.c \
+ui/images/ui_img_check_png.c \
+ui/images/ui_img_5_png.c
 endif
 
 # ASM sources

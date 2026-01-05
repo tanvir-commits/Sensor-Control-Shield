@@ -3,6 +3,7 @@
 #include "st7789_driver.h"
 #include "lvgl.h"
 #include "ui.h"
+#include "ui_styling.h"
 #include <stdio.h>
 #include <string.h>
 #include <sys/unistd.h>
@@ -191,36 +192,55 @@ int main(void)
     ui_init();
     debug_printf("[MAIN] UI init done\r\n");
     
+    /* Apply dark mode styling (separate file to preserve across re-exports) */
+    debug_printf("[MAIN] Applying dark mode styling\r\n");
+    ui_apply_dark_mode_styling();
+    debug_printf("[MAIN] Dark mode styling applied\r\n");
+    
     /* Create Screen2_Detected programmatically */
     create_screen2_detected();
     
-    /* Load Screen2 */
-    debug_printf("[MAIN] Loading Screen2\r\n");
-    lv_screen_load(ui_Screen2);
-    debug_printf("[MAIN] Screen2 loaded\r\n");
+    /* Load Screen1 first */
+    debug_printf("[MAIN] Loading Screen1\r\n");
+    lv_screen_load(ui_Screen1);
+    debug_printf("[MAIN] Screen1 loaded\r\n");
     
-    /* Create LVGL timer to switch to Screen2_Detected after 3 seconds */
-    debug_printf("[MAIN] Creating detection timer (3 seconds)\r\n");
-    lv_timer_t * detection_timer = lv_timer_create(detection_timer_cb, 3000, NULL);
-    lv_timer_set_repeat_count(detection_timer, 1);  // Run only once
-    debug_printf("[MAIN] Detection timer created\r\n");
+    /* Use HAL_GetTick() for timing - simple and reliable */
+    HAL_Delay(100);  // Stabilize
+    uint32_t start_time = HAL_GetTick();
+    uint32_t screen1_end = start_time + 3000;   // Screen1: 3 seconds
+    uint32_t screen2_end = screen1_end + 3000;  // Screen2: 3 seconds
+    uint32_t screen2_detected_end = screen2_end + 3000;  // Screen2_Detected: 3 seconds
+    uint32_t current_screen = 1;
     
-    /* Create LVGL timer to switch to Screen3 after 6 seconds total */
-    debug_printf("[MAIN] Creating screen3 timer (6 seconds)\r\n");
-    lv_timer_t * screen3_timer = lv_timer_create(screen3_timer_cb, 6000, NULL);
-    lv_timer_set_repeat_count(screen3_timer, 1);  // Run only once
-    debug_printf("[MAIN] Screen3 timer created, entering main loop\r\n");
-    
+    debug_printf("[MAIN] Entering main loop\r\n");
     uint32_t loop_count = 0;
-    /* Main loop - standard pattern */
     while (1) {
         lv_timer_handler();
         
-        /* Debug every 1000 iterations (~5 seconds) */
+        uint32_t current_time = HAL_GetTick();
+        
+        /* Simple screen transitions */
+        if (current_screen == 1 && current_time >= screen1_end) {
+            debug_printf("[MAIN] Switching to Screen2\r\n");
+            lv_screen_load(ui_Screen2);
+            current_screen = 2;
+        } else if (current_screen == 2 && current_time >= screen2_end) {
+            debug_printf("[MAIN] Switching to Screen2_Detected\r\n");
+            if (ui_Screen2_Detected != NULL) {
+                lv_screen_load(ui_Screen2_Detected);
+                current_screen = 3;
+            }
+        } else if (current_screen == 3 && current_time >= screen2_detected_end) {
+            debug_printf("[MAIN] Switching to Screen3\r\n");
+            lv_screen_load(ui_Screen3);
+            current_screen = 4;
+        }
+        
         loop_count++;
-        if (loop_count % 1000 == 0) {
+        if (loop_count % 200 == 0) {
             char buf[64];
-            snprintf(buf, sizeof(buf), "[MAIN] Loop %lu\r\n", loop_count);
+            snprintf(buf, sizeof(buf), "[MAIN] Time: %lu ms, Screen: %lu\r\n", current_time, current_screen);
             debug_printf(buf);
         }
         
