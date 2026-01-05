@@ -33,7 +33,7 @@ void ui_init(void)
 
     lv_display_t * dispp = lv_display_get_default();
     lv_theme_t * theme = lv_theme_default_init(dispp, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED),
-                                               false, LV_FONT_DEFAULT);
+                                               true, LV_FONT_DEFAULT);  // true = dark mode
     lv_display_set_theme(dispp, theme);
     ui_Screen2_screen_init();
     ui_Screen3_screen_init();
