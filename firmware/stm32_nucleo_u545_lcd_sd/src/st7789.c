@@ -212,7 +212,6 @@ void ST7789_SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     caset_data[2] = (x1 >> 8) & 0xFF;
     caset_data[3] = x1 & 0xFF;
     HAL_SPI_Transmit(&hspi1, caset_data, 4, 100);
-    // Removed delay and CS toggle - continue in same transaction
     // ST7789_CS_High();
     // HAL_Delay(1);
     
@@ -227,7 +226,6 @@ void ST7789_SetAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     raset_data[2] = (y1 >> 8) & 0xFF;
     raset_data[3] = y1 & 0xFF;
     HAL_SPI_Transmit(&hspi1, raset_data, 4, 100);
-    // Removed delay and CS toggle - continue in same transaction
     // ST7789_CS_High();
     // HAL_Delay(1);
     

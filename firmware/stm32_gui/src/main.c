@@ -2,7 +2,9 @@
 #include "lvgl_port.h"
 #include "st7789_driver.h"
 #include "lvgl.h"
+#include "ui.h"
 #include <stdio.h>
+#include <string.h>
 #include <sys/unistd.h>
 #include <sys/stat.h>
 
@@ -74,6 +76,66 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* htim);
 void Error_Handler(void);
 extern void SystemCoreClockUpdate(void);
 
+/* Debug UART helper */
+static void debug_printf(const char *msg) {
+    HAL_UART_Transmit(&hlpuart1, (uint8_t *)msg, strlen(msg), 100);
+}
+
+/* Screen2_Detected - created programmatically to avoid widget modification freeze */
+static lv_obj_t * ui_Screen2_Detected = NULL;
+static lv_obj_t * ui_Detected_Checkmark = NULL;
+static lv_obj_t * ui_Detected_Label = NULL;
+
+/* Create Screen2_Detected programmatically */
+static void create_screen2_detected(void)
+{
+    debug_printf("[MAIN] Creating Screen2_Detected\r\n");
+    
+    ui_Screen2_Detected = lv_obj_create(NULL);
+    lv_obj_remove_flag(ui_Screen2_Detected, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(ui_Screen2_Detected, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_Screen2_Detected, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    
+    /* Checkmark image */
+    ui_Detected_Checkmark = lv_image_create(ui_Screen2_Detected);
+    lv_image_set_src(ui_Detected_Checkmark, &ui_img_check_png);
+    lv_obj_set_width(ui_Detected_Checkmark, LV_SIZE_CONTENT);
+    lv_obj_set_height(ui_Detected_Checkmark, LV_SIZE_CONTENT);
+    lv_obj_set_align(ui_Detected_Checkmark, LV_ALIGN_CENTER);
+    lv_obj_set_y(ui_Detected_Checkmark, -50);
+    
+    /* "Cassette Detected" label */
+    ui_Detected_Label = lv_label_create(ui_Screen2_Detected);
+    lv_label_set_text(ui_Detected_Label, "Cassette Detected");
+    lv_obj_set_style_text_color(ui_Detected_Label, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_align(ui_Detected_Label, LV_ALIGN_CENTER);
+    lv_obj_set_y(ui_Detected_Label, 50);
+    
+    debug_printf("[MAIN] Screen2_Detected created\r\n");
+}
+
+/* Timer callback to switch to Screen2_Detected */
+static void detection_timer_cb(lv_timer_t * timer)
+{
+    debug_printf("[TIMER] Switching to Screen2_Detected\r\n");
+    if (ui_Screen2_Detected != NULL) {
+        lv_screen_load(ui_Screen2_Detected);
+        debug_printf("[TIMER] Switched to Screen2_Detected\r\n");
+    } else {
+        debug_printf("[TIMER] ERROR: Screen2_Detected is NULL\r\n");
+    }
+    /* Timer will auto-delete after running once */
+}
+
+/* Timer callback to switch to Screen3 */
+static void screen3_timer_cb(lv_timer_t * timer)
+{
+    debug_printf("[TIMER] Switching to Screen3\r\n");
+    lv_screen_load(ui_Screen3);
+    debug_printf("[TIMER] Switched to Screen3\r\n");
+    /* Timer will auto-delete after running once */
+}
+
 /**
  * @brief  The application entry point.
  */
@@ -95,13 +157,22 @@ int main(void)
     MX_GPIO_Init();
     MX_ICACHE_Init();
     MX_LPUART1_UART_Init();
+    
+    /* Test UART immediately - send test message */
+    HAL_Delay(100);
+    const char *test_msg = "=== UART TEST START ===\r\n";
+    HAL_UART_Transmit(&hlpuart1, (uint8_t *)test_msg, strlen(test_msg), 1000);
+    
     MX_SPI1_Init();
     MX_TIM3_Init();
     
     /* Initialize ST7789 display */
+    debug_printf("[MAIN] Initializing ST7789\r\n");
     if (!ST7789_Init()) {
+        debug_printf("[MAIN] ST7789 init FAILED\r\n");
         Error_Handler();
     }
+    debug_printf("[MAIN] ST7789 init OK\r\n");
     
     ST7789_SetRotation(0);  // Portrait mode
     ST7789_SetBacklightBrightness(100);
@@ -116,25 +187,41 @@ int main(void)
     }
     
     /* Initialize SquareLine Studio UI - standard pattern */
-    #include "ui.h"
+    debug_printf("[MAIN] UI init start\r\n");
     ui_init();
+    debug_printf("[MAIN] UI init done\r\n");
+    
+    /* Create Screen2_Detected programmatically */
+    create_screen2_detected();
     
     /* Load Screen2 */
+    debug_printf("[MAIN] Loading Screen2\r\n");
     lv_screen_load(ui_Screen2);
+    debug_printf("[MAIN] Screen2 loaded\r\n");
     
-    /* Screen switching timing */
-    uint32_t start_time = HAL_GetTick();
-    uint8_t current_screen = 2;  // Start with Screen2
+    /* Create LVGL timer to switch to Screen2_Detected after 3 seconds */
+    debug_printf("[MAIN] Creating detection timer (3 seconds)\r\n");
+    lv_timer_t * detection_timer = lv_timer_create(detection_timer_cb, 3000, NULL);
+    lv_timer_set_repeat_count(detection_timer, 1);  // Run only once
+    debug_printf("[MAIN] Detection timer created\r\n");
     
+    /* Create LVGL timer to switch to Screen3 after 6 seconds total */
+    debug_printf("[MAIN] Creating screen3 timer (6 seconds)\r\n");
+    lv_timer_t * screen3_timer = lv_timer_create(screen3_timer_cb, 6000, NULL);
+    lv_timer_set_repeat_count(screen3_timer, 1);  // Run only once
+    debug_printf("[MAIN] Screen3 timer created, entering main loop\r\n");
+    
+    uint32_t loop_count = 0;
     /* Main loop - standard pattern */
     while (1) {
         lv_timer_handler();
         
-        /* Switch to Screen3 after 3 seconds */
-        uint32_t elapsed = HAL_GetTick() - start_time;
-        if (current_screen == 2 && elapsed >= 3000) {
-            lv_screen_load(ui_Screen3);
-            current_screen = 3;
+        /* Debug every 1000 iterations (~5 seconds) */
+        loop_count++;
+        if (loop_count % 1000 == 0) {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "[MAIN] Loop %lu\r\n", loop_count);
+            debug_printf(buf);
         }
         
         HAL_Delay(5);
